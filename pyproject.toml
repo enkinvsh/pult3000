@@ -1,0 +1,21 @@
+[project]
+name = "kaset-remote-bot"
+version = "0.1.0"
+description = "Telegram bot for controlling YouTube Music via Kaset on macOS"
+requires-python = ">=3.13"
+dependencies = [
+    "aiogram>=3.15",
+    "ytmusicapi>=1.9",
+    "faster-whisper>=1.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

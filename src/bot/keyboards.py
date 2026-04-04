@@ -1,30 +1,34 @@
-"""Inline keyboard layouts for the music remote."""
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-
-def player_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def reply_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
             [
-                InlineKeyboardButton(text="⏮", callback_data="prev"),
-                InlineKeyboardButton(text="⏯", callback_data="playpause"),
-                InlineKeyboardButton(text="⏭", callback_data="next"),
+                KeyboardButton(text="⏮"),
+                KeyboardButton(text="⏯"),
+                KeyboardButton(text="⏭"),
             ],
             [
-                InlineKeyboardButton(text="🔀", callback_data="shuffle"),
-                InlineKeyboardButton(text="❤️", callback_data="like"),
-                InlineKeyboardButton(text="🔇", callback_data="vol_mute"),
-                InlineKeyboardButton(text="ℹ️", callback_data="info"),
+                KeyboardButton(text="🔀"),
+                KeyboardButton(text="❤️"),
+                KeyboardButton(text="🔇"),
+                KeyboardButton(text="ℹ️"),
             ],
             [
-                InlineKeyboardButton(text="15%", callback_data="vol_set:15"),
-                InlineKeyboardButton(text="25%", callback_data="vol_set:25"),
-                InlineKeyboardButton(text="50%", callback_data="vol_set:50"),
-                InlineKeyboardButton(text="75%", callback_data="vol_set:75"),
-                InlineKeyboardButton(text="100%", callback_data="vol_set:100"),
+                KeyboardButton(text="15%"),
+                KeyboardButton(text="25%"),
+                KeyboardButton(text="50%"),
+                KeyboardButton(text="75%"),
+                KeyboardButton(text="100%"),
             ],
-        ]
+        ],
+        resize_keyboard=True,
     )
 
 

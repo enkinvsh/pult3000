@@ -46,3 +46,33 @@ class MusicSearcher:
                     )
                 )
         return results
+
+    def search_artist_tracks(self, query: str, limit: int = 20) -> list[SearchResult]:
+        """Search for an artist and return their top tracks."""
+        try:
+            artists = self._ytm.search(query, filter="artists", limit=1)
+            if not artists:
+                return []
+            artist_id = artists[0].get("browseId")
+            if not artist_id:
+                return []
+            artist_data = self._ytm.get_artist(artist_id)
+            songs = artist_data.get("songs", {}).get("results", [])
+        except Exception as e:
+            logger.error("artist track search failed: %s", e)
+            return []
+
+        results = []
+        for item in songs[:limit]:
+            if item.get("videoId"):
+                artists_list = item.get("artists", [])
+                artist_name = artists_list[0]["name"] if artists_list else "Unknown"
+                results.append(
+                    SearchResult(
+                        video_id=item["videoId"],
+                        title=item.get("title", "Unknown"),
+                        artist=artist_name,
+                        duration=item.get("duration"),
+                    )
+                )
+        return results

@@ -3,8 +3,7 @@ import logging
 
 from aiogram import Bot
 
-from src.bot.handlers.controls import _format_now_playing
-from src.bot.keyboards import player_keyboard
+from src.bot.status import format_now_playing
 from src.kaset import KasetController
 
 logger = logging.getLogger(__name__)
@@ -61,14 +60,13 @@ class TrackPoller:
         self._last_video_id = video_id
         self._last_is_playing = is_playing
         self._last_volume = volume
-        text = _format_now_playing(info)
+        text = format_now_playing(info)
         try:
             await self._bot.edit_message_text(
                 text,
                 chat_id=self._active_chat_id,
                 message_id=self._active_message_id,
-                reply_markup=player_keyboard(),
             )
             logger.info("Updated status: %s", video_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to update status message: %s", e)

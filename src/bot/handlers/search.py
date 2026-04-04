@@ -5,8 +5,11 @@ import re
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
-from src.bot.handlers.controls import _format_now_playing
-from src.bot.keyboards import player_keyboard, search_results_keyboard
+from src.bot import playback_mode as pm
+from src.bot.handlers.controls import CONTROL_BUTTONS
+from src.bot.keyboards import search_results_keyboard
+from src.bot.status import format_now_playing, sync_poller
+from src.bot.playback_mode import PlaybackMode
 from src.kaset import KasetController
 from src.music_search import MusicSearcher, SearchResult
 
@@ -44,11 +47,21 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
 
     @router.message(F.text)
     async def on_text(message: Message) -> None:
+        if message.text in CONTROL_BUTTONS:
+            return
         query = extract_query(message.text, allow_raw=True)
         if not query:
             return
 
-        results = searcher.search(query, limit=20)[:20]
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        if pm.current == PlaybackMode.ARTIST:
+            results = searcher.search_artist_tracks(query, limit=20)
+        else:
+            results = searcher.search(query, limit=20)[:20]
         if not results:
             await message.answer("🔍 Ничего не нашёл")
             return
@@ -56,9 +69,22 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
         if len(results) == 1:
             await kaset.play_video(results[0].video_id)
             await asyncio.sleep(3)
+            from src.bot import track_poller as tp
+
             info = await kaset.get_player_info()
-            text = _format_now_playing(info)
-            await message.answer(text, reply_markup=player_keyboard())
+            text = format_now_playing(info)
+            if tp.instance and tp.instance._active_message_id:
+                try:
+                    await message.bot.edit_message_text(
+                        text,
+                        chat_id=tp.instance._active_chat_id,
+                        message_id=tp.instance._active_message_id,
+                    )
+                    return
+                except Exception:
+                    pass
+            msg = await message.answer(text)
+            sync_poller(info, msg.chat.id, msg.message_id)
         else:
             _cached_results.clear()
             _cached_results.extend(results)
@@ -92,13 +118,24 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
     async def on_play_result(cb: CallbackQuery) -> None:
         video_id = cb.data.split(":", 1)[1]
         await cb.answer("▶️")
-        await kaset.play_video(video_id)
-        await asyncio.sleep(3)
-        info = await kaset.get_player_info()
-        text = _format_now_playing(info)
         try:
-            await cb.message.edit_text(text, reply_markup=player_keyboard())
+            await cb.message.delete()
         except Exception:
             pass
+        await kaset.play_video(video_id)
+        await asyncio.sleep(3)
+        from src.bot import track_poller as tp
+
+        info = await kaset.get_player_info()
+        text = format_now_playing(info)
+        if tp.instance and tp.instance._active_message_id:
+            try:
+                await cb.message.bot.edit_message_text(
+                    text,
+                    chat_id=tp.instance._active_chat_id,
+                    message_id=tp.instance._active_message_id,
+                )
+            except Exception:
+                pass
 
     return router

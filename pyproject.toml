@@ -5,6 +5,7 @@ description = "Telegram bot for controlling YouTube Music via Kaset on macOS"
 requires-python = ">=3.13"
 dependencies = [
     "aiogram>=3.15",
+    "aiohttp-socks>=0.9",
     "ytmusicapi>=1.9",
     "python-dotenv>=1.0",
 ]

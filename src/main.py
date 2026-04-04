@@ -1,16 +1,15 @@
-"""Entry point for kaset-remote-bot."""
-
 import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 
-from src.bot.handlers import commands, controls, search, voice
+from src.bot.handlers import commands, controls, search
 from src.bot.middlewares import AdminOnlyMiddleware
+from src.bot.track_poller import TrackPoller
 from src.config import Config
 from src.kaset import KasetController
 from src.music_search import MusicSearcher
-from src.whisper_stt import WhisperSTT
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,20 +24,24 @@ async def main() -> None:
 
     kaset = KasetController()
     searcher = MusicSearcher()
-    whisper = WhisperSTT(model_size=config.whisper_model)
 
-    bot = Bot(token=config.bot_token)
+    session = AiohttpSession(proxy=config.proxy_url) if config.proxy_url else None
+    bot = Bot(token=config.bot_token, session=session)
     dp = Dispatcher()
 
     dp.message.middleware(AdminOnlyMiddleware(config.admin_id))
     dp.callback_query.middleware(AdminOnlyMiddleware(config.admin_id))
 
-    # Order matters: commands first, then voice, then text (text is catch-all)
-    dp.include_router(commands.router)
+    from src.bot import track_poller as tp
+
+    poller = TrackPoller(kaset, bot)
+    tp.instance = poller
+
+    dp.include_router(commands.setup(kaset))
     dp.include_router(controls.setup(kaset))
-    dp.include_router(voice.setup(kaset, searcher, whisper, config.bot_token))
     dp.include_router(search.setup(kaset, searcher))
 
+    poller.start()
     logger.info("Bot started, polling...")
     await dp.start_polling(bot)
 

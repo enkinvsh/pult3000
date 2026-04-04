@@ -1,13 +1,14 @@
-"""Kaset.app controller via AppleScript and URL scheme."""
-
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+_HELPER = Path(__file__).parent.parent / "open-url"
 
-async def run_osascript(script: str) -> str:
+
+async def run_osascript(script: str, timeout: float = 5.0) -> str:
     proc = await asyncio.create_subprocess_exec(
         "osascript",
         "-e",
@@ -15,11 +16,17 @@ async def run_osascript(script: str) -> str:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await proc.communicate()
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        raise RuntimeError(f"osascript timed out after {timeout}s: {script}")
     if proc.returncode != 0:
         error_msg = stderr.decode().strip()
         raise RuntimeError(f"osascript failed: {error_msg}")
-    return stdout.decode().strip()
+    result = stdout.decode().strip()
+    logger.debug("osascript result: %s", result[:200])
+    return result
 
 
 async def run_subprocess(cmd: list[str]) -> None:
@@ -79,4 +86,5 @@ class KasetController:
             return None
 
     async def play_video(self, video_id: str) -> None:
-        await run_subprocess(["open", f"kaset://play?v={video_id}"])
+        logger.info("Playing video: %s", video_id)
+        await run_osascript(f'{self._TELL}play video "{video_id}"')

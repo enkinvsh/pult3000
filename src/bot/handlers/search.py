@@ -1,14 +1,14 @@
-"""Handlers for text-based music search and playback."""
-
+import asyncio
 import logging
 import re
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
+from src.bot.handlers.controls import _format_now_playing
 from src.bot.keyboards import player_keyboard, search_results_keyboard
 from src.kaset import KasetController
-from src.music_search import MusicSearcher
+from src.music_search import MusicSearcher, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,9 @@ _PREFIXES = re.compile(
     r"^\s*(включи|поставь|играй|найди|play|search)\s+",
     re.IGNORECASE,
 )
+
+_PER_PAGE = 5
+_cached_results: list[SearchResult] = []
 
 
 def extract_query(text: str, allow_raw: bool = False) -> str | None:
@@ -31,6 +34,12 @@ def extract_query(text: str, allow_raw: bool = False) -> str | None:
     return None
 
 
+def _page_items(page: int) -> list[tuple[str, str]]:
+    start = page * _PER_PAGE
+    end = start + _PER_PAGE
+    return [(r.video_id, r.display) for r in _cached_results[start:end]]
+
+
 def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
 
     @router.message(F.text)
@@ -39,32 +48,57 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
         if not query:
             return
 
-        results = searcher.search(query, limit=5)
+        results = searcher.search(query, limit=20)[:20]
         if not results:
             await message.answer("🔍 Ничего не нашёл")
             return
 
         if len(results) == 1:
             await kaset.play_video(results[0].video_id)
-            await message.answer(
-                f"▶️ {results[0].display}",
-                reply_markup=player_keyboard(),
-            )
+            await asyncio.sleep(3)
+            info = await kaset.get_player_info()
+            text = _format_now_playing(info)
+            await message.answer(text, reply_markup=player_keyboard())
         else:
-            items = [(r.video_id, r.display) for r in results]
+            _cached_results.clear()
+            _cached_results.extend(results)
+            page = 0
+            items = _page_items(page)
             await message.answer(
                 "🔍 Выбери трек:",
-                reply_markup=search_results_keyboard(items),
+                reply_markup=search_results_keyboard(
+                    items, page=page, per_page=_PER_PAGE, total=len(_cached_results)
+                ),
             )
+
+    @router.callback_query(F.data.startswith("page:"))
+    async def on_page(cb: CallbackQuery) -> None:
+        page = int(cb.data.split(":", 1)[1])
+        items = _page_items(page)
+        if not items:
+            await cb.answer("Нет результатов")
+            return
+        await cb.answer()
+        try:
+            await cb.message.edit_reply_markup(
+                reply_markup=search_results_keyboard(
+                    items, page=page, per_page=_PER_PAGE, total=len(_cached_results)
+                ),
+            )
+        except Exception:
+            pass
 
     @router.callback_query(F.data.startswith("play:"))
     async def on_play_result(cb: CallbackQuery) -> None:
         video_id = cb.data.split(":", 1)[1]
+        await cb.answer("▶️")
         await kaset.play_video(video_id)
-        await cb.message.edit_text(
-            f"▶️ Запускаю...",
-            reply_markup=player_keyboard(),
-        )
-        await cb.answer()
+        await asyncio.sleep(3)
+        info = await kaset.get_player_info()
+        text = _format_now_playing(info)
+        try:
+            await cb.message.edit_text(text, reply_markup=player_keyboard())
+        except Exception:
+            pass
 
     return router

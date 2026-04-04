@@ -9,4 +9,5 @@ def config():
         admin_id=123456,
         whisper_model="tiny",
         project_root="/tmp/test",
+        proxy_url=None,
     )

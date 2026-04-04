@@ -11,8 +11,6 @@ load_dotenv()
 class Config:
     bot_token: str
     admin_id: int
-    whisper_model: str
-    project_root: Path
     proxy_url: str | None
 
     @classmethod
@@ -28,7 +26,5 @@ class Config:
         return cls(
             bot_token=token,
             admin_id=int(admin_id),
-            whisper_model=environ.get("WHISPER_MODEL", "base"),
-            project_root=Path(__file__).parent.parent,
             proxy_url=environ.get("PROXY_URL"),
         )

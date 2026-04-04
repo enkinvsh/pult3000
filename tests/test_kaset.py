@@ -81,6 +81,7 @@ class TestKasetCommands:
 
     @patch("src.kaset.run_osascript", new_callable=AsyncMock)
     async def test_play_by_video_id(self, mock_osa, kaset):
-        with patch("src.kaset.run_subprocess", new_callable=AsyncMock) as mock_sub:
-            await kaset.play_video("dQw4w9WgXcQ")
-            mock_sub.assert_called_once_with(["open", "kaset://play?v=dQw4w9WgXcQ"])
+        await kaset.play_video("dQw4w9WgXcQ")
+        mock_osa.assert_called_once_with(
+            'tell application "Kaset" to play video "dQw4w9WgXcQ"'
+        )

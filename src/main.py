@@ -4,7 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 
-from src.bot.handlers import commands, controls, search
+from src.bot.handlers import commands, controls, search, similar
 from src.bot.middlewares import AdminOnlyMiddleware
 from src.bot.track_poller import TrackPoller
 from src.config import Config
@@ -39,6 +39,7 @@ async def main() -> None:
 
     dp.include_router(commands.setup(kaset))
     dp.include_router(controls.setup(kaset))
+    dp.include_router(similar.setup(kaset, searcher))
     dp.include_router(search.setup(kaset, searcher))
 
     poller.start()

@@ -76,3 +76,35 @@ class MusicSearcher:
                     )
                 )
         return results
+
+    def get_similar(self, video_id: str, limit: int = 20) -> list[SearchResult]:
+        """Get similar tracks via YouTube Music radio algorithm.
+
+        Requests limit+1 to account for skipping the current track.
+        """
+        try:
+            watch = self._ytm.get_watch_playlist(
+                videoId=video_id, radio=True, limit=limit + 1
+            )
+        except Exception as e:
+            logger.error("get similar tracks failed: %s", e)
+            return []
+
+        results: list[SearchResult] = []
+        for item in watch.get("tracks", []):
+            vid = item.get("videoId")
+            if not vid or vid == video_id:
+                continue
+            artists = item.get("artists", [])
+            artist_name = artists[0]["name"] if artists else "Unknown"
+            results.append(
+                SearchResult(
+                    video_id=vid,
+                    title=item.get("title", "Unknown"),
+                    artist=artist_name,
+                    duration=item.get(
+                        "length"
+                    ),  # watch endpoint uses "length", not "duration"
+                )
+            )
+        return results[:limit]

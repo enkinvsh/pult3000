@@ -76,3 +76,111 @@ class TestMusicSearcher:
         assert "Nothing Else Matters" in r.display
         assert "Metallica" in r.display
         assert "6:28" in r.display
+
+    @patch("src.music_search.YTMusic")
+    def test_get_similar_returns_results(self, mock_ytm_cls):
+        mock_ytm = MagicMock()
+        mock_ytm_cls.return_value = mock_ytm
+        mock_ytm.get_watch_playlist.return_value = {
+            "tracks": [
+                {
+                    "videoId": "current123",
+                    "title": "Current Song",
+                    "artists": [{"name": "Artist A"}],
+                    "length": "3:30",
+                },
+                {
+                    "videoId": "similar1",
+                    "title": "Similar Song 1",
+                    "artists": [{"name": "Artist B"}],
+                    "length": "4:00",
+                },
+                {
+                    "videoId": "similar2",
+                    "title": "Similar Song 2",
+                    "artists": [{"name": "Artist C"}],
+                    "length": "3:15",
+                },
+            ],
+            "playlistId": "RDAMVM...",
+        }
+
+        searcher = MusicSearcher()
+        results = searcher.get_similar("current123", limit=10)
+
+        assert len(results) == 2
+        assert results[0].video_id == "similar1"
+        assert results[0].title == "Similar Song 1"
+        assert results[0].artist == "Artist B"
+        assert results[0].duration == "4:00"
+        mock_ytm.get_watch_playlist.assert_called_once_with(
+            videoId="current123", radio=True, limit=11
+        )
+
+    @patch("src.music_search.YTMusic")
+    def test_get_similar_skips_current_track(self, mock_ytm_cls):
+        mock_ytm = MagicMock()
+        mock_ytm_cls.return_value = mock_ytm
+        mock_ytm.get_watch_playlist.return_value = {
+            "tracks": [
+                {
+                    "videoId": "current123",
+                    "title": "Current Song",
+                    "artists": [{"name": "Artist A"}],
+                    "length": "3:30",
+                },
+            ],
+            "playlistId": "RDAMVM...",
+        }
+
+        searcher = MusicSearcher()
+        results = searcher.get_similar("current123")
+
+        assert results == []
+
+    @patch("src.music_search.YTMusic")
+    def test_get_similar_returns_empty_on_error(self, mock_ytm_cls):
+        mock_ytm = MagicMock()
+        mock_ytm_cls.return_value = mock_ytm
+        mock_ytm.get_watch_playlist.side_effect = Exception("API error")
+
+        searcher = MusicSearcher()
+        results = searcher.get_similar("abc123")
+
+        assert results == []
+
+    @patch("src.music_search.YTMusic")
+    def test_get_similar_returns_empty_when_no_tracks(self, mock_ytm_cls):
+        mock_ytm = MagicMock()
+        mock_ytm_cls.return_value = mock_ytm
+        mock_ytm.get_watch_playlist.return_value = {
+            "tracks": [],
+            "playlistId": "RDAMVM...",
+        }
+
+        searcher = MusicSearcher()
+        results = searcher.get_similar("abc123")
+
+        assert results == []
+
+    @patch("src.music_search.YTMusic")
+    def test_get_similar_handles_missing_artists(self, mock_ytm_cls):
+        mock_ytm = MagicMock()
+        mock_ytm_cls.return_value = mock_ytm
+        mock_ytm.get_watch_playlist.return_value = {
+            "tracks": [
+                {
+                    "videoId": "no_artist",
+                    "title": "Mystery Track",
+                    "artists": [],
+                    "length": "2:00",
+                },
+            ],
+            "playlistId": "RDAMVM...",
+        }
+
+        searcher = MusicSearcher()
+        results = searcher.get_similar("other_id")
+
+        assert len(results) == 1
+        assert results[0].artist == "Unknown"

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -79,9 +80,15 @@ class TestKasetCommands:
         info = await kaset.get_player_info()
         assert info is None
 
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_play_by_video_id(self, mock_osa, kaset):
+    @patch("asyncio.create_subprocess_exec", new_callable=AsyncMock)
+    async def test_play_by_video_id(self, mock_exec, kaset):
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"", b"")
+        mock_exec.return_value = mock_proc
         await kaset.play_video("dQw4w9WgXcQ")
-        mock_osa.assert_called_once_with(
-            'tell application "Kaset" to play video "dQw4w9WgXcQ"'
+        mock_exec.assert_called_once_with(
+            "open",
+            "kaset://play?v=dQw4w9WgXcQ",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )

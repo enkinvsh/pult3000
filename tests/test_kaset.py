@@ -1,4 +1,5 @@
 import json
+import plistlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -11,77 +12,116 @@ def kaset():
     return KasetController()
 
 
-class TestKasetCommands:
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_play(self, mock_osa, kaset):
-        await kaset.play()
-        mock_osa.assert_called_once_with('tell application "Kaset" to play')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_pause(self, mock_osa, kaset):
-        await kaset.pause()
-        mock_osa.assert_called_once_with('tell application "Kaset" to pause')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_playpause(self, mock_osa, kaset):
-        await kaset.playpause()
-        mock_osa.assert_called_once_with('tell application "Kaset" to playpause')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_next_track(self, mock_osa, kaset):
-        await kaset.next_track()
-        mock_osa.assert_called_once_with('tell application "Kaset" to next track')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_previous_track(self, mock_osa, kaset):
-        await kaset.previous_track()
-        mock_osa.assert_called_once_with('tell application "Kaset" to previous track')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_set_volume(self, mock_osa, kaset):
-        await kaset.set_volume(75)
-        mock_osa.assert_called_once_with('tell application "Kaset" to set volume 75')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_set_volume_clamps_to_range(self, mock_osa, kaset):
-        await kaset.set_volume(150)
-        mock_osa.assert_called_once_with('tell application "Kaset" to set volume 100')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_toggle_shuffle(self, mock_osa, kaset):
-        await kaset.toggle_shuffle()
-        mock_osa.assert_called_once_with('tell application "Kaset" to toggle shuffle')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_like_track(self, mock_osa, kaset):
-        await kaset.like_track()
-        mock_osa.assert_called_once_with('tell application "Kaset" to like track')
-
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_get_player_info(self, mock_osa, kaset):
-        mock_osa.return_value = json.dumps(
+def _make_plist(video_id="abc123", title="Test Song", artist="Test Artist", volume=0.5):
+    session = {
+        "currentVideoId": video_id,
+        "duration": 200,
+        "progress": 42,
+        "currentIndex": 0,
+        "queue": [
             {
-                "isPlaying": True,
-                "currentTrack": {
-                    "name": "Test Song",
-                    "artist": "Test Artist",
-                    "videoId": "abc123",
-                },
+                "title": title,
+                "artists": [{"name": artist}],
+                "videoId": video_id,
+                "duration": 200,
+                "id": video_id,
             }
-        )
-        info = await kaset.get_player_info()
-        assert info["isPlaying"] is True
-        assert info["currentTrack"]["name"] == "Test Song"
+        ],
+    }
+    data = {
+        "kaset.saved.playbackSession": json.dumps(session).encode(),
+        "playerVolume": volume,
+    }
+    return plistlib.dumps(data).decode()
 
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_get_player_info_returns_none_on_error(self, mock_osa, kaset):
-        mock_osa.side_effect = RuntimeError("Kaset not running")
+
+class TestKasetControls:
+    @patch("src.kaset._key_code", new_callable=AsyncMock)
+    async def test_playpause(self, mock_kc, kaset):
+        await kaset.playpause()
+        mock_kc.assert_called_once_with(49)
+
+    @patch("src.kaset._key_code", new_callable=AsyncMock)
+    async def test_next_track(self, mock_kc, kaset):
+        await kaset.next_track()
+        mock_kc.assert_called_once_with(124, "command down")
+
+    @patch("src.kaset._key_code", new_callable=AsyncMock)
+    async def test_previous_track(self, mock_kc, kaset):
+        await kaset.previous_track()
+        mock_kc.assert_called_once_with(123, "command down")
+
+    @patch("src.kaset._keystroke", new_callable=AsyncMock)
+    async def test_toggle_shuffle(self, mock_ks, kaset):
+        await kaset.toggle_shuffle()
+        mock_ks.assert_called_once_with("s", "command down")
+
+    @patch("src.kaset._keystroke", new_callable=AsyncMock)
+    async def test_like_track(self, mock_ks, kaset):
+        await kaset.like_track()
+        mock_ks.assert_called_once_with("l", "command down")
+
+    @patch("src.kaset._run", new_callable=AsyncMock)
+    async def test_play_video(self, mock_run, kaset):
+        await kaset.play_video("dQw4w9WgXcQ")
+        mock_run.assert_called_once_with(["open", "kaset://play?v=dQw4w9WgXcQ"])
+
+
+class TestGetPlayerInfo:
+    @patch("src.kaset._run", new_callable=AsyncMock)
+    async def test_returns_track_info(self, mock_run, kaset):
+        mock_run.return_value = _make_plist("abc123", "Test Song", "Test Artist", 0.75)
+
         info = await kaset.get_player_info()
+
+        assert info["currentTrack"]["name"] == "Test Song"
+        assert info["currentTrack"]["artist"] == "Test Artist"
+        assert info["currentTrack"]["videoId"] == "abc123"
+        assert info["volume"] == 75
+        assert info["duration"] == 200
+        assert info["position"] == 42
+
+    @patch("src.kaset._run", new_callable=AsyncMock)
+    async def test_returns_none_on_error(self, mock_run, kaset):
+        mock_run.side_effect = RuntimeError("no defaults")
+
+        info = await kaset.get_player_info()
+
         assert info is None
 
-    @patch("src.kaset.run_osascript", new_callable=AsyncMock)
-    async def test_play_by_video_id(self, mock_osa, kaset):
-        await kaset.play_video("dQw4w9WgXcQ")
-        mock_osa.assert_called_once_with(
-            'tell application "Kaset" to play video "dQw4w9WgXcQ"'
-        )
+    @patch("src.kaset._run", new_callable=AsyncMock)
+    async def test_returns_none_on_empty_session(self, mock_run, kaset):
+        data = {"playerVolume": 0.5}
+        mock_run.return_value = plistlib.dumps(data).decode()
+
+        info = await kaset.get_player_info()
+
+        assert info is None
+
+    @patch("src.kaset._run", new_callable=AsyncMock)
+    async def test_unknown_artist_when_no_artists(self, mock_run, kaset):
+        session = {
+            "currentVideoId": "x",
+            "duration": 100,
+            "progress": 0,
+            "currentIndex": 0,
+            "queue": [
+                {
+                    "title": "T",
+                    "artists": [],
+                    "videoId": "x",
+                    "duration": 100,
+                    "id": "x",
+                }
+            ],
+        }
+        data = {
+            "kaset.saved.playbackSession": json.dumps(session).encode(),
+            "playerVolume": 0.25,
+        }
+        mock_run.return_value = plistlib.dumps(data).decode()
+
+        info = await kaset.get_player_info()
+
+        assert info["currentTrack"]["artist"] == "Unknown"
+        assert info["volume"] == 25

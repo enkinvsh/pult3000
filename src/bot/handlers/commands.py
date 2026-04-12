@@ -29,6 +29,24 @@ def setup(kaset: KasetController) -> Router:
         msg = await message.answer(text)
         sync_poller(info, msg.chat.id, msg.message_id)
 
+    @router.message(Command("testosa"))
+    async def cmd_testosa(message: Message) -> None:
+        import asyncio
+
+        proc = await asyncio.create_subprocess_exec(
+            "osascript",
+            "-e",
+            'tell application "Kaset" to get player info',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+            await message.answer(f"OK: {stdout.decode()[:200]}")
+        except asyncio.TimeoutError:
+            proc.kill()
+            await message.answer("TIMEOUT: osascript hung")
+
     @router.message(Command("mode"))
     async def cmd_mode(message: Message) -> None:
         if pm.current == PlaybackMode.RADIO:

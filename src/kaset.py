@@ -76,10 +76,4 @@ class KasetController:
 
     async def play_video(self, video_id: str) -> None:
         logger.info("Playing video: %s", video_id)
-        proc = await asyncio.create_subprocess_exec(
-            "open",
-            f"kaset://play?v={video_id}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate()
+        await run_osascript(f'{self._TELL}play video "{video_id}"')

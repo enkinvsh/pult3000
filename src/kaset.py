@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 _HELPER = Path(__file__).parent.parent / "open-url"
 
 
-async def run_osascript(script: str, timeout: float = 5.0) -> str:
+async def run_osascript(script: str, timeout: float = 15.0) -> str:
     proc = await asyncio.create_subprocess_exec(
         "osascript",
         "-e",

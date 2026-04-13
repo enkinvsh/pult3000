@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import random
 
 from aiogram import F, Router
 from aiogram.types import Message
@@ -8,6 +7,7 @@ from aiogram.types import Message
 from src.bot.status import format_now_playing, sync_poller
 from src.browser_player import BrowserPlayer
 from src.music_search import MusicSearcher
+from src.queue import queue
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,6 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
 
         track = info["currentTrack"]
         artist = track.get("artist", "")
-        current_video_id = track.get("id", "")
 
         if not artist:
             await message.answer("📻 Не могу определить артиста")
@@ -46,14 +45,16 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
                 await message.answer(f"📻 Не нашёл плейлистов для {artist}")
             return
 
-        candidates = [t for t in playlist_tracks if t.video_id != current_video_id]
-        if not candidates:
-            await message.answer("📻 Нет других треков в плейлисте")
+        queue.set_playlist(playlist_tracks, shuffle=True)
+        first_track = queue.current()
+        if not first_track:
+            await message.answer("📻 Пустой плейлист")
             return
 
-        chosen = random.choice(candidates)
-        logger.info("Radio: playlist track %s - %s", chosen.artist, chosen.title)
-        await player.play_video(chosen.video_id)
+        logger.info(
+            "Radio: started queue for %s (%d tracks)", artist, len(playlist_tracks)
+        )
+        await player.play_video(first_track.video_id)
         await asyncio.sleep(2)
         await _update_status(message, player)
 

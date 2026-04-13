@@ -6,6 +6,7 @@ from aiogram.types import Message
 
 from src.bot.status import format_now_playing, sync_poller
 from src.browser_player import BrowserPlayer
+from src.queue import queue
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +63,23 @@ def setup(player: BrowserPlayer) -> Router:
 
     @router.message(F.text == "⏭")
     async def on_next(message: Message) -> None:
+        if queue.is_active():
+            track = queue.next()
+            if track:
+                await player.play_video(track.video_id)
+                await _update_pinned(message, player, delay=2.0)
+                return
         await player.next_track()
         await _update_pinned(message, player, delay=1.0)
 
     @router.message(F.text == "⏮")
     async def on_prev(message: Message) -> None:
+        if queue.is_active():
+            track = queue.prev()
+            if track:
+                await player.play_video(track.video_id)
+                await _update_pinned(message, player, delay=2.0)
+                return
         await player.previous_track()
         await _update_pinned(message, player, delay=1.0)
 

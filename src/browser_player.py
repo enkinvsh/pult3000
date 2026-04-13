@@ -201,30 +201,20 @@ class BrowserPlayer:
     async def playpause(self) -> None:
         """Toggle play/pause."""
         page = await self._ensure_open()
-        # Just click the play-pause button regardless of state
-        btn = page.locator("tp-yt-paper-icon-button.play-pause-button")
-        if await btn.count() > 0:
-            await btn.click()
+        await page.keyboard.press(" ")
+        logger.info("Toggled play/pause")
 
     async def next_track(self) -> None:
         """Skip to next track."""
         page = await self._ensure_open()
-        next_btn = page.locator(
-            'tp-yt-paper-icon-button.next-button, tp-yt-paper-icon-button[aria-label="Next"]'
-        )
-        if await next_btn.count() > 0:
-            await next_btn.first.click()
-            logger.debug("Skipped to next track")
+        await page.keyboard.press("Shift+N")
+        logger.info("Skipped to next track")
 
     async def previous_track(self) -> None:
         """Go to previous track."""
         page = await self._ensure_open()
-        prev_btn = page.locator(
-            'tp-yt-paper-icon-button.previous-button, tp-yt-paper-icon-button[aria-label="Previous"]'
-        )
-        if await prev_btn.count() > 0:
-            await prev_btn.first.click()
-            logger.debug("Went to previous track")
+        await page.keyboard.press("Shift+P")
+        logger.info("Went to previous track")
 
     async def toggle_shuffle(self) -> None:
         """Toggle shuffle mode."""

@@ -1,5 +1,3 @@
-"""YouTube Music search via ytmusicapi."""
-
 import logging
 from dataclasses import dataclass
 
@@ -22,8 +20,9 @@ class SearchResult:
 
 
 class MusicSearcher:
-    def __init__(self) -> None:
-        self._ytm = YTMusic()
+    def __init__(self, proxy_url: str | None = None) -> None:
+        proxies = {"https": proxy_url, "http": proxy_url} if proxy_url else None
+        self._ytm = YTMusic(proxies=proxies)
 
     def search(self, query: str, limit: int = 5) -> list[SearchResult]:
         try:

@@ -23,7 +23,7 @@ async def main() -> None:
     logger.info("Starting Kaset Remote Bot (admin=%s)", config.admin_id)
 
     kaset = KasetController()
-    searcher = MusicSearcher()
+    searcher = MusicSearcher(proxy_url=config.proxy_url)
 
     session = AiohttpSession(proxy=config.proxy_url) if config.proxy_url else None
     bot = Bot(token=config.bot_token, session=session)

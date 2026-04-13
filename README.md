@@ -12,18 +12,10 @@ Telegram-пульт для YouTube Music на Mac.
 ## Установка
 
 ```bash
-git clone https://github.com/enkinvsh/pult3000.git
-cd pult3000
-cp .env.example .env
-# Заполни .env (BOT_TOKEN, ADMIN_ID, PROXY_URL)
-
-python3.13 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/playwright install chromium
-
-# Автозапуск
-bash deploy/install.sh
+curl -fsSL https://raw.githubusercontent.com/enkinvsh/pult3000/main/install.sh | bash
 ```
+
+Скрипт спросит токен бота и твой Telegram ID.
 
 ## .env
 

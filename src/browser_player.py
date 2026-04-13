@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 # User data directory for persistent login
 USER_DATA_DIR = Path.home() / ".kaset-remote-bot" / "browser-data"
-# Extension path (relative to project root)
-EXTENSION_DIR = Path(__file__).parent.parent / "extension"
 
 
 @dataclass
@@ -63,14 +61,11 @@ class BrowserPlayer:
         # Prepare launch options
         USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        ext_path = str(EXTENSION_DIR.resolve())
         launch_opts: dict = {
             "headless": False,
             "args": [
                 "--autoplay-policy=no-user-gesture-required",
                 "--disable-blink-features=AutomationControlled",
-                f"--disable-extensions-except={ext_path}",
-                f"--load-extension={ext_path}",
             ],
         }
 
@@ -87,13 +82,21 @@ class BrowserPlayer:
         pages = self._context.pages
         self._page = pages[0] if pages else await self._context.new_page()
 
-        # Navigate to YouTube Music
+        await self._context.add_init_script("""
+            window.__kasetVolume = window.__kasetVolume || 1.0;
+            setInterval(() => {
+                const video = document.querySelector('video');
+                if (video && window.__kasetVolume !== undefined) {
+                    video.volume = window.__kasetVolume;
+                }
+            }, 100);
+        """)
+
         await self._page.goto(
             "https://music.youtube.com", wait_until="domcontentloaded"
         )
         logger.info("Browser opened, navigated to YouTube Music")
 
-        # Wait for page to be ready
         await asyncio.sleep(2)
 
     async def close(self) -> None:
@@ -238,7 +241,11 @@ class BrowserPlayer:
     async def set_volume(self, level: int) -> None:
         page = await self._ensure_open()
         vol = level / 100
-        await page.evaluate(f"localStorage.setItem('kaset_volume', '{vol}')")
+        await page.evaluate(f"""
+            const video = document.querySelector('video');
+            if (video) video.volume = {vol};
+            window.__kasetVolume = {vol};
+        """)
         logger.info("Volume set to %d%%", level)
 
     async def get_player_info(self) -> dict | None:

@@ -172,8 +172,8 @@ class BrowserPlayer:
         await page.goto(url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
-        # Click play if paused
         await self._click_play_if_paused(page)
+        await page.evaluate("document.querySelector('video').volume = 1.0")
         logger.info("Playing video: %s", video_id)
 
     async def _click_play_if_paused(self, page: "Page") -> None:

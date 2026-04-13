@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 async def main() -> None:
     config = Config.from_env()
-    logger.info("Starting Kaset Remote Bot (admin=%s)", config.admin_id)
+    logger.info("Starting Pult3000 (admin=%s)", config.admin_id)
 
     player = BrowserPlayer(proxy_url=config.proxy_url)
     searcher = MusicSearcher(proxy_url=config.proxy_url)

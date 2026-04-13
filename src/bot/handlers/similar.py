@@ -1,13 +1,11 @@
-"""Radio handler — Deezer recommendations played via YouTube Music."""
-
 import asyncio
 import logging
+import random
 
 from aiogram import F, Router
 from aiogram.types import Message
 
 from src.bot.status import format_now_playing, sync_poller
-from src.deezer import DeezerRecommender
 from src.kaset import KasetController
 from src.music_search import MusicSearcher
 
@@ -16,9 +14,7 @@ logger = logging.getLogger(__name__)
 router = Router(name="similar")
 
 
-def setup(
-    kaset: KasetController, searcher: MusicSearcher, deezer: DeezerRecommender
-) -> Router:
+def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
 
     @router.message(F.text == "📻")
     async def on_radio(message: Message) -> None:
@@ -34,35 +30,27 @@ def setup(
 
         track = info["currentTrack"]
         artist = track.get("artist", "")
-        title = track.get("name", "")
+        current_video_id = track.get("id", "")
 
-        if not artist or not title:
-            await message.answer("📻 Не могу определить трек")
+        if not artist:
+            await message.answer("📻 Не могу определить артиста")
             return
 
-        recommendations = await deezer.get_similar(artist, title, limit=5)
-        if not recommendations:
-            await message.answer("📻 Не нашёл похожих")
+        playlist_tracks = searcher.get_playlist_tracks(artist, limit=50)
+        if not playlist_tracks:
+            await message.answer(f"📻 Не нашёл плейлистов для {artist}")
             return
 
-        for rec in recommendations:
-            query = f"{rec.artist} {rec.name}"
-            yt_results = searcher.search(query, limit=1)
-            if yt_results:
-                first = yt_results[0]
-                logger.info(
-                    "Radio: Deezer '%s - %s' -> YT '%s - %s'",
-                    rec.artist,
-                    rec.name,
-                    first.artist,
-                    first.title,
-                )
-                await kaset.play_video(first.video_id)
-                await asyncio.sleep(2)
-                await _update_status(message, kaset)
-                return
+        candidates = [t for t in playlist_tracks if t.video_id != current_video_id]
+        if not candidates:
+            await message.answer("📻 Нет других треков в плейлисте")
+            return
 
-        await message.answer("📻 Не нашёл в YouTube Music")
+        chosen = random.choice(candidates)
+        logger.info("Radio: playlist track %s - %s", chosen.artist, chosen.title)
+        await kaset.play_video(chosen.video_id)
+        await asyncio.sleep(2)
+        await _update_status(message, kaset)
 
     return router
 

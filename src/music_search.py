@@ -78,10 +78,6 @@ class MusicSearcher:
         return results
 
     def get_similar(self, video_id: str, limit: int = 20) -> list[SearchResult]:
-        """Get similar tracks via YouTube Music radio algorithm.
-
-        Requests limit+1 to account for skipping the current track.
-        """
         try:
             watch = self._ytm.get_watch_playlist(
                 videoId=video_id, radio=True, limit=limit + 1
@@ -102,9 +98,52 @@ class MusicSearcher:
                     video_id=vid,
                     title=item.get("title", "Unknown"),
                     artist=artist_name,
-                    duration=item.get(
-                        "length"
-                    ),  # watch endpoint uses "length", not "duration"
+                    duration=item.get("length"),
                 )
             )
         return results[:limit]
+
+    def get_playlist_tracks(self, artist: str, limit: int = 50) -> list[SearchResult]:
+        try:
+            playlists = self._ytm.search(artist, filter="playlists", limit=5)
+            if not playlists:
+                logger.warning("No playlists found for: %s", artist)
+                return []
+
+            for pl in playlists:
+                playlist_id = pl.get("browseId")
+                if not playlist_id:
+                    continue
+
+                playlist_data = self._ytm.get_playlist(playlist_id, limit=limit)
+                tracks = playlist_data.get("tracks", [])
+
+                results = []
+                for item in tracks:
+                    vid = item.get("videoId")
+                    if not vid:
+                        continue
+                    artists = item.get("artists", [])
+                    artist_name = artists[0]["name"] if artists else "Unknown"
+                    results.append(
+                        SearchResult(
+                            video_id=vid,
+                            title=item.get("title", "Unknown"),
+                            artist=artist_name,
+                            duration=item.get("duration"),
+                        )
+                    )
+
+                if results:
+                    logger.info(
+                        "Found %d tracks in playlist '%s' for artist %s",
+                        len(results),
+                        pl.get("title"),
+                        artist,
+                    )
+                    return results
+
+            return []
+        except Exception as e:
+            logger.error("get playlist tracks failed: %s", e)
+            return []

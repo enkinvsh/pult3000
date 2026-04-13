@@ -1,14 +1,18 @@
-from src.deezer import DeezerRecommender, SimilarTrack
+from src.music_search import MusicSearcher, SearchResult
 
 
-class TestSimilarTrack:
+class TestSearchResult:
     def test_dataclass_fields(self):
-        track = SimilarTrack(name="Test Song", artist="Test Artist")
-        assert track.name == "Test Song"
-        assert track.artist == "Test Artist"
+        result = SearchResult(
+            video_id="abc123", title="Test Song", artist="Test Artist"
+        )
+        assert result.video_id == "abc123"
+        assert result.title == "Test Song"
+        assert result.artist == "Test Artist"
 
 
-class TestDeezerRecommender:
+class TestMusicSearcherPlaylist:
     def test_can_instantiate(self):
-        recommender = DeezerRecommender()
-        assert recommender is not None
+        searcher = MusicSearcher()
+        assert searcher is not None
+        assert hasattr(searcher, "get_playlist_tracks")

@@ -1,32 +1,27 @@
-"""Similar tracks handler — YouTube Music radio recommendations."""
+"""Radio handler — Deezer recommendations played via YouTube Music."""
 
+import asyncio
 import logging
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import Message
 
-from src.bot.keyboards import search_results_keyboard
+from src.bot.status import format_now_playing, sync_poller
+from src.deezer import DeezerRecommender
 from src.kaset import KasetController
-from src.music_search import MusicSearcher, SearchResult
+from src.music_search import MusicSearcher
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="similar")
 
-_PER_PAGE = 5
-_cached_similar: list[SearchResult] = []
 
-
-def _page_items(page: int) -> list[tuple[str, str]]:
-    start = page * _PER_PAGE
-    end = start + _PER_PAGE
-    return [(r.video_id, r.display) for r in _cached_similar[start:end]]
-
-
-def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
+def setup(
+    kaset: KasetController, searcher: MusicSearcher, deezer: DeezerRecommender
+) -> Router:
 
     @router.message(F.text == "📻")
-    async def on_similar(message: Message) -> None:
+    async def on_radio(message: Message) -> None:
         try:
             await message.delete()
         except Exception:
@@ -37,52 +32,57 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
             await message.answer("📻 Сейчас ничего не играет")
             return
 
-        video_id = info["currentTrack"].get("videoId")
-        if not video_id:
+        track = info["currentTrack"]
+        artist = track.get("artist", "")
+        title = track.get("name", "")
+
+        if not artist or not title:
             await message.answer("📻 Не могу определить трек")
             return
 
-        results = searcher.get_similar(video_id, limit=20)
-        if not results:
-            await message.answer("📻 Не нашёл похожих треков")
+        recommendations = await deezer.get_similar(artist, title, limit=5)
+        if not recommendations:
+            await message.answer("📻 Не нашёл похожих")
             return
 
-        _cached_similar.clear()
-        _cached_similar.extend(results)
-        page = 0
-        items = _page_items(page)
-        track = info["currentTrack"]
-        title = f"📻 Похожее на: {track.get('artist', '?')} — {track.get('name', '?')}"
-        await message.answer(
-            title,
-            reply_markup=search_results_keyboard(
-                items,
-                page=page,
-                per_page=_PER_PAGE,
-                total=len(_cached_similar),
-                page_prefix="sp",
-            ),
-        )
+        for rec in recommendations:
+            query = f"{rec.artist} {rec.name}"
+            yt_results = searcher.search(query, limit=1)
+            if yt_results:
+                first = yt_results[0]
+                logger.info(
+                    "Radio: Deezer '%s - %s' -> YT '%s - %s'",
+                    rec.artist,
+                    rec.name,
+                    first.artist,
+                    first.title,
+                )
+                await kaset.play_video(first.video_id)
+                await asyncio.sleep(2)
+                await _update_status(message, kaset)
+                return
 
-    @router.callback_query(F.data.startswith("sp:"))
-    async def on_sim_page(cb: CallbackQuery) -> None:
-        page = int(cb.data.split(":", 1)[1])
-        items = _page_items(page)
-        if not items:
-            await cb.answer("Нет результатов")
-            return
-        await cb.answer()
+        await message.answer("📻 Не нашёл в YouTube Music")
+
+    return router
+
+
+async def _update_status(message: Message, kaset: KasetController) -> None:
+    from src.bot import track_poller as tp
+
+    info = await kaset.get_player_info()
+    text = format_now_playing(info)
+
+    if tp.instance and tp.instance._active_message_id:
         try:
-            await cb.message.edit_reply_markup(
-                reply_markup=search_results_keyboard(
-                    items,
-                    page=page,
-                    per_page=_PER_PAGE,
-                    total=len(_cached_similar),
-                    page_prefix="sp",
-                ),
+            await message.bot.edit_message_text(
+                text,
+                chat_id=tp.instance._active_chat_id,
+                message_id=tp.instance._active_message_id,
             )
+            return
         except Exception:
             pass
 
-    return router
+    msg = await message.answer(text)
+    sync_poller(info, msg.chat.id, msg.message_id)

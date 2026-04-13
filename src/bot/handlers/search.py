@@ -122,6 +122,7 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
             await cb.message.delete()
         except Exception:
             pass
+
         await kaset.play_video(video_id)
         await asyncio.sleep(3)
         from src.bot import track_poller as tp

@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 # User data directory for persistent login
 USER_DATA_DIR = Path.home() / ".kaset-remote-bot" / "browser-data"
+# Extension path (relative to project root)
+EXTENSION_DIR = Path(__file__).parent.parent / "extension"
 
 
 @dataclass
@@ -61,11 +63,14 @@ class BrowserPlayer:
         # Prepare launch options
         USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+        ext_path = str(EXTENSION_DIR.resolve())
         launch_opts: dict = {
-            "headless": False,  # Headful so user sees/hears
+            "headless": False,
             "args": [
                 "--autoplay-policy=no-user-gesture-required",
                 "--disable-blink-features=AutomationControlled",
+                f"--disable-extensions-except={ext_path}",
+                f"--load-extension={ext_path}",
             ],
         }
 

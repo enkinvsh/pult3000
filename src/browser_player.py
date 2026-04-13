@@ -83,11 +83,11 @@ class BrowserPlayer:
         self._page = pages[0] if pages else await self._context.new_page()
 
         await self._context.add_init_script("""
-            window.__kasetVolume = window.__kasetVolume || 1.0;
             setInterval(() => {
                 const video = document.querySelector('video');
-                if (video && window.__kasetVolume !== undefined) {
-                    video.volume = window.__kasetVolume;
+                if (video) {
+                    const vol = localStorage.getItem('kaset_volume');
+                    if (vol !== null) video.volume = parseFloat(vol);
                 }
             }, 100);
         """)
@@ -242,9 +242,9 @@ class BrowserPlayer:
         page = await self._ensure_open()
         vol = level / 100
         await page.evaluate(f"""
+            localStorage.setItem('kaset_volume', '{vol}');
             const video = document.querySelector('video');
             if (video) video.volume = {vol};
-            window.__kasetVolume = {vol};
         """)
         logger.info("Volume set to %d%%", level)
 

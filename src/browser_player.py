@@ -47,6 +47,7 @@ class BrowserPlayer:
         self._page: "Page | None" = None
         self._playwright = None
         self._lock = asyncio.Lock()
+        self._volume: int = 100
 
     async def open(self) -> None:
         """Open browser and navigate to YouTube Music."""
@@ -173,8 +174,12 @@ class BrowserPlayer:
         await asyncio.sleep(2)
 
         await self._click_play_if_paused(page)
-        await page.evaluate("document.querySelector('video').volume = 1.0")
+        await self._apply_volume(page)
         logger.info("Playing video: %s", video_id)
+
+    async def _apply_volume(self, page: "Page") -> None:
+        vol = self._volume / 100
+        await page.evaluate(f"document.querySelector('video').volume = {vol}")
 
     async def _click_play_if_paused(self, page: "Page") -> None:
         """Click play button if video is paused."""
@@ -235,18 +240,9 @@ class BrowserPlayer:
     async def set_volume(self, level: int) -> None:
         """Set volume (0-100)."""
         page = await self._ensure_open()
-        level = max(0, min(100, level))
-
-        # Click volume slider area
-        volume_slider = page.locator("#volume-slider")
-        if await volume_slider.count() > 0:
-            # Use JavaScript to set volume
-            await page.evaluate(
-                f"""
-                const video = document.querySelector('video');
-                if (video) video.volume = {level / 100};
-                """
-            )
+        self._volume = max(0, min(100, level))
+        await self._apply_volume(page)
+        logger.info("Volume set to %d%%", self._volume)
 
     async def toggle_mute(self) -> None:
         """Toggle mute."""

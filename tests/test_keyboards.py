@@ -14,8 +14,7 @@ class TestReplyKeyboard:
         buttons = [btn.text for row in kb.keyboard for btn in row]
         assert "🔀" in buttons
         assert "❤️" in buttons
-        assert "🔇" in buttons
-        assert "ℹ️" in buttons
+        assert "📻" in buttons
 
     def test_has_volume_presets(self):
         kb = reply_keyboard()

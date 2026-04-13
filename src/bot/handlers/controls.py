@@ -19,6 +19,11 @@ CONTROL_BUTTONS = {
     "🔀",
     "❤️",
     "📻",
+    "15%",
+    "25%",
+    "50%",
+    "75%",
+    "100%",
 }
 
 
@@ -85,5 +90,14 @@ def setup(player: BrowserPlayer) -> Router:
     async def on_like(message: Message) -> None:
         await player.like_track()
         await _update_pinned(message, player)
+
+    @router.message(F.text.in_({"15%", "25%", "50%", "75%", "100%"}))
+    async def on_volume(message: Message) -> None:
+        level = int(message.text.rstrip("%"))
+        await player.set_volume(level)
+        try:
+            await message.delete()
+        except Exception:
+            pass
 
     return router

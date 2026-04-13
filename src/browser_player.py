@@ -230,6 +230,12 @@ class BrowserPlayer:
         if await like_btn.count() > 0:
             await like_btn.click()
 
+    async def set_volume(self, level: int) -> None:
+        page = await self._ensure_open()
+        vol = level / 100
+        await page.evaluate(f"localStorage.setItem('kaset_volume', '{vol}')")
+        logger.info("Volume set to %d%%", level)
+
     async def get_player_info(self) -> dict | None:
         """Get current player state."""
         page = await self._ensure_open()

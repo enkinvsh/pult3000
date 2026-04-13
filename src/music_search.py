@@ -104,10 +104,16 @@ class MusicSearcher:
 
     def get_playlist_tracks(self, artist: str, limit: int = 50) -> list[SearchResult]:
         try:
-            playlists = self._ytm.search(artist, filter="playlists", limit=5)
+            playlists = self._ytm.search(artist, filter="playlists", limit=10)
             if not playlists:
                 logger.warning("No playlists found for: %s", artist)
                 return []
+
+            logger.info(
+                "Playlists for '%s': %s",
+                artist,
+                [(p.get("title"), p.get("itemCount", "?")) for p in playlists],
+            )
 
             for pl in playlists:
                 playlist_id = pl.get("browseId")

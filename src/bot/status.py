@@ -3,13 +3,12 @@ _SPACER = "\u2007" * 35
 
 def format_now_playing(info: dict | None) -> str:
     if not info or not info.get("currentTrack"):
-        return f"{_SPACER}\n⏸ —\n🔊 —"
+        return f"{_SPACER}\n⏸ —"
     track = info["currentTrack"]
     status = "▶️" if info.get("isPlaying") else "⏸"
     artist = track.get("artist") or "—"
     title = track.get("title") or track.get("name") or "—"
-    vol = info.get("volume", "—")
-    return f"{_SPACER}\n{status} {artist} — {title}\n🔊 {vol}%"
+    return f"{_SPACER}\n{status} {artist} — {title}"
 
 
 def sync_poller(info: dict | None, chat_id: int, message_id: int) -> None:

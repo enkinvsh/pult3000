@@ -75,6 +75,7 @@ class BrowserPlayer:
 
         self._context = await self._playwright.chromium.launch_persistent_context(
             user_data_dir=str(USER_DATA_DIR),
+            channel="chrome",
             **launch_opts,
         )
 

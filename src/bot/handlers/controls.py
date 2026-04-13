@@ -20,7 +20,6 @@ CONTROL_BUTTONS = {
     "❤️",
     "📻",
     "🔇",
-    "ℹ️",
     "15%",
     "25%",
     "50%",
@@ -97,10 +96,6 @@ def setup(player: BrowserPlayer) -> Router:
     async def on_mute(message: Message) -> None:
         await player.toggle_mute()
         await _update_pinned(message, player, delay=0.3)
-
-    @router.message(F.text == "ℹ️")
-    async def on_info(message: Message) -> None:
-        await _update_pinned(message, player)
 
     @router.message(F.text.in_({"15%", "25%", "50%", "75%", "100%"}))
     async def on_vol_set(message: Message) -> None:

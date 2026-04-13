@@ -19,7 +19,6 @@ def reply_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text="❤️"),
                 KeyboardButton(text="📻"),
                 KeyboardButton(text="🔇"),
-                KeyboardButton(text="ℹ️"),
             ],
             [
                 KeyboardButton(text="15%"),

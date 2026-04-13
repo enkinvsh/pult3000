@@ -188,7 +188,11 @@ class BrowserPlayer:
         await asyncio.sleep(2)
 
         await self._click_play_if_paused(page)
-        logger.info("Playing video: %s", video_id)
+        vol = self._volume / 100
+        await page.evaluate(
+            f"window.__BOT_VOLUME__ = {vol}; document.querySelector('video').volume = {vol}"
+        )
+        logger.info("Playing video: %s (vol %d%%)", video_id, self._volume)
 
     async def _click_play_if_paused(self, page: "Page") -> None:
         """Click play button if video is paused."""

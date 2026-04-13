@@ -10,7 +10,7 @@ from src.bot.handlers.controls import CONTROL_BUTTONS
 from src.bot.keyboards import search_results_keyboard
 from src.bot.status import format_now_playing, sync_poller
 from src.bot.playback_mode import PlaybackMode
-from src.kaset import KasetController
+from src.browser_player import BrowserPlayer
 from src.music_search import MusicSearcher, SearchResult
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def _page_items(page: int) -> list[tuple[str, str]]:
     return [(r.video_id, r.display) for r in _cached_results[start:end]]
 
 
-def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
+def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
 
     @router.message(F.text)
     async def on_text(message: Message) -> None:
@@ -67,11 +67,11 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
             return
 
         if len(results) == 1:
-            await kaset.play_video(results[0].video_id)
+            await player.play_video(results[0].video_id)
             await asyncio.sleep(3)
             from src.bot import track_poller as tp
 
-            info = await kaset.get_player_info()
+            info = await player.get_player_info()
             text = format_now_playing(info)
             if tp.instance and tp.instance._active_message_id:
                 try:
@@ -123,11 +123,11 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
         except Exception:
             pass
 
-        await kaset.play_video(video_id)
+        await player.play_video(video_id)
         await asyncio.sleep(3)
         from src.bot import track_poller as tp
 
-        info = await kaset.get_player_info()
+        info = await player.get_player_info()
         text = format_now_playing(info)
         if tp.instance and tp.instance._active_message_id:
             try:

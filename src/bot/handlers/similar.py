@@ -6,7 +6,7 @@ from aiogram import F, Router
 from aiogram.types import Message
 
 from src.bot.status import format_now_playing, sync_poller
-from src.kaset import KasetController
+from src.browser_player import BrowserPlayer
 from src.music_search import MusicSearcher
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = Router(name="similar")
 
 
-def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
+def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
 
     @router.message(F.text == "📻")
     async def on_radio(message: Message) -> None:
@@ -23,7 +23,7 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
         except Exception:
             pass
 
-        info = await kaset.get_player_info()
+        info = await player.get_player_info()
         if not info or not info.get("currentTrack"):
             await message.answer("📻 Сейчас ничего не играет")
             return
@@ -38,7 +38,12 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
 
         playlist_tracks = searcher.get_playlist_tracks(artist, limit=50)
         if not playlist_tracks:
-            await message.answer(f"📻 Не нашёл плейлистов для {artist}")
+            started = await player.search_and_play_playlist(artist)
+            if started:
+                await asyncio.sleep(2)
+                await _update_status(message, player)
+            else:
+                await message.answer(f"📻 Не нашёл плейлистов для {artist}")
             return
 
         candidates = [t for t in playlist_tracks if t.video_id != current_video_id]
@@ -48,17 +53,17 @@ def setup(kaset: KasetController, searcher: MusicSearcher) -> Router:
 
         chosen = random.choice(candidates)
         logger.info("Radio: playlist track %s - %s", chosen.artist, chosen.title)
-        await kaset.play_video(chosen.video_id)
+        await player.play_video(chosen.video_id)
         await asyncio.sleep(2)
-        await _update_status(message, kaset)
+        await _update_status(message, player)
 
     return router
 
 
-async def _update_status(message: Message, kaset: KasetController) -> None:
+async def _update_status(message: Message, player: BrowserPlayer) -> None:
     from src.bot import track_poller as tp
 
-    info = await kaset.get_player_info()
+    info = await player.get_player_info()
     text = format_now_playing(info)
 
     if tp.instance and tp.instance._active_message_id:

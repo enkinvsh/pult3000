@@ -6,17 +6,17 @@ from src.bot import playback_mode as pm
 from src.bot.keyboards import reply_keyboard
 from src.bot.status import format_now_playing, sync_poller
 from src.bot.playback_mode import PlaybackMode
-from src.kaset import KasetController
+from src.browser_player import BrowserPlayer
 
 router = Router(name="commands")
 
 
-def setup(kaset: KasetController) -> Router:
+def setup(player: BrowserPlayer) -> Router:
 
     @router.message(Command("start"))
     async def cmd_start(message: Message) -> None:
         await message.answer("🎵", reply_markup=reply_keyboard())
-        info = await kaset.get_player_info()
+        info = await player.get_player_info()
         text = format_now_playing(info)
         msg = await message.answer(text)
         sync_poller(info, msg.chat.id, msg.message_id)
@@ -24,7 +24,7 @@ def setup(kaset: KasetController) -> Router:
     @router.message(Command("remote"))
     async def cmd_remote(message: Message) -> None:
         await message.answer("🎵", reply_markup=reply_keyboard())
-        info = await kaset.get_player_info()
+        info = await player.get_player_info()
         text = format_now_playing(info)
         msg = await message.answer(text)
         sync_poller(info, msg.chat.id, msg.message_id)

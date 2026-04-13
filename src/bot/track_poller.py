@@ -4,7 +4,7 @@ import logging
 from aiogram import Bot
 
 from src.bot.status import format_now_playing
-from src.kaset import KasetController
+from src.browser_player import BrowserPlayer
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +12,8 @@ instance: "TrackPoller | None" = None
 
 
 class TrackPoller:
-    def __init__(self, kaset: KasetController, bot: Bot) -> None:
-        self._kaset = kaset
+    def __init__(self, player: BrowserPlayer, bot: Bot) -> None:
+        self._player = player
         self._bot = bot
         self._last_video_id: str | None = None
         self._last_is_playing: bool | None = None
@@ -42,7 +42,7 @@ class TrackPoller:
         if not self._active_message_id or not self._active_chat_id:
             return
 
-        info = await self._kaset.get_player_info()
+        info = await self._player.get_player_info()
         if not info or not info.get("currentTrack"):
             return
 

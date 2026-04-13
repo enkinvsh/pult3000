@@ -1,25 +1,32 @@
-(() => {
-  const LS_KEY = 'kaset_volume';
-  
-  function getVolume() {
-    const val = localStorage.getItem(LS_KEY);
-    return val ? parseFloat(val) : 1.0;
+let volume = 1.0;
+
+chrome.storage.local.get(['volume'], (result) => {
+  volume = (result.volume ?? 100) / 100;
+  applyVolume();
+});
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.volume !== undefined) {
+    volume = msg.volume;
+    applyVolume();
   }
+});
 
-  function applyVolume() {
-    const vol = getVolume();
-    const video = document.querySelector('video');
-    if (video && Math.abs(video.volume - vol) > 0.01) {
-      video.volume = vol;
-    }
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.volume) {
+    volume = changes.volume.newValue / 100;
+    applyVolume();
   }
+});
 
-  new MutationObserver(applyVolume).observe(document.documentElement, { 
-    childList: true, 
-    subtree: true 
-  });
+function applyVolume() {
+  const video = document.querySelector('video');
+  if (video) video.volume = volume;
+}
 
-  setInterval(applyVolume, 50);
-  
-  window.addEventListener('storage', applyVolume);
-})();
+new MutationObserver(applyVolume).observe(document.documentElement, { 
+  childList: true, 
+  subtree: true 
+});
+
+setInterval(applyVolume, 50);

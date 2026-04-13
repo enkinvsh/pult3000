@@ -47,7 +47,6 @@ class BrowserPlayer:
         self._page: "Page | None" = None
         self._playwright = None
         self._lock = asyncio.Lock()
-        self._volume: int = 100
 
     async def open(self) -> None:
         """Open browser and navigate to YouTube Music."""
@@ -82,21 +81,6 @@ class BrowserPlayer:
 
         pages = self._context.pages
         self._page = pages[0] if pages else await self._context.new_page()
-
-        await self._page.add_init_script(f"""
-            window.__BOT_VOLUME__ = {self._volume / 100};
-            const observer = new MutationObserver((mutations) => {{
-                const video = document.querySelector('video');
-                if (video && video.volume !== window.__BOT_VOLUME__) {{
-                    video.volume = window.__BOT_VOLUME__;
-                }}
-            }});
-            observer.observe(document, {{ childList: true, subtree: true }});
-            setInterval(() => {{
-                const video = document.querySelector('video');
-                if (video) video.volume = window.__BOT_VOLUME__;
-            }}, 100);
-        """)
 
         # Navigate to YouTube Music
         await self._page.goto(
@@ -188,11 +172,7 @@ class BrowserPlayer:
         await asyncio.sleep(2)
 
         await self._click_play_if_paused(page)
-        vol = self._volume / 100
-        await page.evaluate(
-            f"window.__BOT_VOLUME__ = {vol}; document.querySelector('video').volume = {vol}"
-        )
-        logger.info("Playing video: %s (vol %d%%)", video_id, self._volume)
+        logger.info("Playing video: %s", video_id)
 
     async def _click_play_if_paused(self, page: "Page") -> None:
         """Click play button if video is paused."""
@@ -253,12 +233,10 @@ class BrowserPlayer:
     async def set_volume(self, level: int) -> None:
         """Set volume (0-100)."""
         page = await self._ensure_open()
-        self._volume = max(0, min(100, level))
-        vol = self._volume / 100
-        await page.evaluate(
-            f"window.__BOT_VOLUME__ = {vol}; document.querySelector('video').volume = {vol}"
-        )
-        logger.info("Volume set to %d%%", self._volume)
+        level = max(0, min(100, level))
+        vol = level / 100
+        await page.evaluate(f"localStorage.setItem('kaset_volume', '{vol}')")
+        logger.info("Volume set to %d%%", level)
 
     async def toggle_mute(self) -> None:
         """Toggle mute."""

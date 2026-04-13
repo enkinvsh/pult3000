@@ -7,9 +7,9 @@ def format_now_playing(info: dict | None) -> str:
     track = info["currentTrack"]
     status = "▶️" if info.get("isPlaying") else "⏸"
     artist = track.get("artist") or "—"
-    name = track.get("name") or "—"
+    title = track.get("title") or track.get("name") or "—"
     vol = info.get("volume", "—")
-    return f"{_SPACER}\n{status} {artist} — {name}\n🔊 {vol}%"
+    return f"{_SPACER}\n{status} {artist} — {title}\n🔊 {vol}%"
 
 
 def sync_poller(info: dict | None, chat_id: int, message_id: int) -> None:

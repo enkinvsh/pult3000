@@ -266,13 +266,38 @@ class BrowserPlayer:
                     const video = document.querySelector('video');
                     if (!video) return null;
 
-                    // Get title from player bar
-                    const titleEl = document.querySelector('.title.ytmusic-player-bar');
-                    const title = titleEl ? titleEl.textContent.trim() : '';
+                    // Try multiple selectors for title
+                    const titleSelectors = [
+                        'ytmusic-player-bar .title',
+                        '.content-info-wrapper .title',
+                        'yt-formatted-string.title',
+                        '.title.ytmusic-player-bar',
+                    ];
+                    let title = '';
+                    for (const sel of titleSelectors) {
+                        const el = document.querySelector(sel);
+                        if (el && el.textContent.trim()) {
+                            title = el.textContent.trim();
+                            break;
+                        }
+                    }
 
-                    // Get artist from player bar
-                    const artistEl = document.querySelector('.byline.ytmusic-player-bar a');
-                    const artist = artistEl ? artistEl.textContent.trim() : '';
+                    // Try multiple selectors for artist
+                    const artistSelectors = [
+                        'ytmusic-player-bar .subtitle a',
+                        '.content-info-wrapper .subtitle a',
+                        'span.subtitle yt-formatted-string a',
+                        '.byline.ytmusic-player-bar a',
+                        'ytmusic-player-bar .byline a',
+                    ];
+                    let artist = '';
+                    for (const sel of artistSelectors) {
+                        const el = document.querySelector(sel);
+                        if (el && el.textContent.trim()) {
+                            artist = el.textContent.trim();
+                            break;
+                        }
+                    }
 
                     // Get video ID from URL
                     const url = new URL(window.location.href);
@@ -280,10 +305,6 @@ class BrowserPlayer:
 
                     // Get play state
                     const isPlaying = !video.paused;
-
-                    // Get duration
-                    const durationEl = document.querySelector('.time-info');
-                    const duration = durationEl ? durationEl.textContent.trim() : '';
 
                     return {
                         currentTrack: {
@@ -293,7 +314,6 @@ class BrowserPlayer:
                             artist: artist,
                         },
                         isPlaying: isPlaying,
-                        duration: duration,
                         volume: Math.round(video.volume * 100),
                     };
                 }

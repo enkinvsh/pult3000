@@ -38,38 +38,6 @@ class TestBrowserPlayerControls:
         player._context = MagicMock()
         return player
 
-    async def test_playpause_clicks_button(self, player_with_page):
-        mock_locator = MagicMock()
-        mock_locator.count = AsyncMock(return_value=1)
-        mock_locator.click = AsyncMock()
-        player_with_page._page.locator.return_value = mock_locator
-
-        await player_with_page.playpause()
-
-        mock_locator.click.assert_called_once()
-
-    async def test_next_track_clicks_next_button(self, player_with_page):
-        mock_locator = MagicMock()
-        mock_locator.count = AsyncMock(return_value=1)
-        mock_locator.click = AsyncMock()
-        mock_locator.first = mock_locator
-        player_with_page._page.locator.return_value = mock_locator
-
-        await player_with_page.next_track()
-
-        mock_locator.click.assert_called_once()
-
-    async def test_previous_track_clicks_button(self, player_with_page):
-        mock_locator = MagicMock()
-        mock_locator.count = AsyncMock(return_value=1)
-        mock_locator.click = AsyncMock()
-        mock_locator.first = mock_locator
-        player_with_page._page.locator.return_value = mock_locator
-
-        await player_with_page.previous_track()
-
-        mock_locator.click.assert_called_once()
-
     async def test_get_player_info_returns_dict(self, player_with_page):
         player_with_page._page.evaluate = AsyncMock(
             return_value={

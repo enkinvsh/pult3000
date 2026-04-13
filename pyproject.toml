@@ -1,7 +1,7 @@
 [project]
-name = "kaset-remote-bot"
+name = "pult3000"
 version = "0.1.0"
-description = "Telegram bot for controlling YouTube Music via Kaset on macOS"
+description = "Telegram remote control for YouTube Music"
 requires-python = ">=3.13"
 dependencies = [
     "aiogram>=3.15",

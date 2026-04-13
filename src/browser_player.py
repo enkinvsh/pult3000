@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # User data directory for persistent login
-USER_DATA_DIR = Path.home() / ".kaset-remote-bot" / "browser-data"
+USER_DATA_DIR = Path.home() / ".pult3000" / "browser-data"
 
 
 @dataclass
@@ -86,7 +86,7 @@ class BrowserPlayer:
             setInterval(() => {
                 const video = document.querySelector('video');
                 if (video) {
-                    const vol = localStorage.getItem('kaset_volume');
+                    const vol = localStorage.getItem('pult_volume');
                     if (vol !== null) video.volume = parseFloat(vol);
                 }
             }, 100);
@@ -242,7 +242,7 @@ class BrowserPlayer:
         page = await self._ensure_open()
         vol = level / 100
         await page.evaluate(f"""
-            localStorage.setItem('kaset_volume', '{vol}');
+            localStorage.setItem('pult_volume', '{vol}');
             const video = document.querySelector('video');
             if (video) video.volume = {vol};
         """)

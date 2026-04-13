@@ -73,9 +73,10 @@ async def _update_status(message: Message, player: BrowserPlayer) -> None:
                 chat_id=tp.instance._active_chat_id,
                 message_id=tp.instance._active_message_id,
             )
-            return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not edit status message: %s", e)
+        sync_poller(info, tp.instance._active_chat_id, tp.instance._active_message_id)
+        return
 
     msg = await message.answer(text)
     sync_poller(info, msg.chat.id, msg.message_id)

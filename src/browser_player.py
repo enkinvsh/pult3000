@@ -104,8 +104,30 @@ class BrowserPlayer:
             logger.info("Browser closed")
 
     async def _ensure_open(self) -> "Page":
-        if self._page is None:
+        if self._page is None or self._page.is_closed():
+            logger.info("Page missing/closed, (re)opening")
+            self._page = None
+            self._context = None
             await self.open()
+        else:
+            try:
+                url = self._page.url
+            except Exception:
+                url = ""
+            if "music.youtube.com" not in url:
+                logger.info("Page drifted off YT Music (url=%s), recovering", url)
+                try:
+                    await self._page.goto(
+                        "https://music.youtube.com", wait_until="domcontentloaded"
+                    )
+                    await asyncio.sleep(1)
+                except Exception as e:
+                    logger.warning("Goto recovery failed, re-opening: %s", e)
+                    try:
+                        await self.close()
+                    except Exception:
+                        pass
+                    await self.open()
         assert self._page is not None
         return self._page
 
@@ -226,7 +248,8 @@ class BrowserPlayer:
         else:
             await self._warn_missing(page, "like button")
 
-    async def set_volume(self, level: int) -> None:
+    async def set_volume(self, level: int) -> int:
+        level = max(0, min(100, level))
         page = await self._ensure_open()
         vol = level / 100
         await page.evaluate(
@@ -238,6 +261,15 @@ class BrowserPlayer:
             vol,
         )
         logger.info("Volume set to %d%%", level)
+        return level
+
+    async def bump_volume(self, delta: int) -> int:
+        page = await self._ensure_open()
+        current = await page.evaluate(
+            "() => { const v = document.querySelector('video');"
+            " return v ? Math.round(v.volume * 100) : 50; }"
+        )
+        return await self.set_volume(int(current) + delta)
 
     async def get_player_info(self) -> dict | None:
         page = await self._ensure_open()
@@ -285,6 +317,21 @@ class BrowserPlayer:
 
                     const isPlaying = !video.paused;
 
+                    const shuffleEl = document.querySelector(
+                        'ytmusic-player-bar tp-yt-paper-icon-button[aria-label*="shuffle" i]'
+                    );
+                    const shuffleOn = shuffleEl
+                        ? shuffleEl.getAttribute('aria-pressed') === 'true'
+                          || shuffleEl.hasAttribute('active')
+                        : false;
+
+                    const likeBtn = document.querySelector(
+                        'ytmusic-like-button-renderer'
+                    );
+                    const liked = likeBtn
+                        ? likeBtn.getAttribute('like-status') === 'LIKE'
+                        : false;
+
                     return {
                         currentTrack: {
                             id: videoId,
@@ -294,6 +341,10 @@ class BrowserPlayer:
                         },
                         isPlaying: isPlaying,
                         volume: Math.round(video.volume * 100),
+                        position: isFinite(video.currentTime) ? video.currentTime : 0,
+                        duration: isFinite(video.duration) ? video.duration : 0,
+                        shuffle: shuffleOn,
+                        liked: liked,
                     };
                 }
                 """

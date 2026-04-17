@@ -49,6 +49,12 @@ async def main() -> None:
     try:
         await dp.start_polling(bot)
     finally:
+        if poller._task:
+            poller._task.cancel()
+            try:
+                await poller._task
+            except (asyncio.CancelledError, Exception):
+                pass
         await player.close()
 
 

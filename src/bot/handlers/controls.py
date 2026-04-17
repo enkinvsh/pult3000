@@ -2,9 +2,9 @@ import asyncio
 import logging
 
 from aiogram import F, Router
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.status import format_now_playing
+from src.bot.status import render_pinned
 from src.browser_player import BrowserPlayer
 from src.queue import queue
 
@@ -38,21 +38,8 @@ async def _update_pinned(
     if delay:
         await asyncio.sleep(delay)
 
-    from src.bot import track_poller as tp
-
-    if not (tp.instance and tp.instance.has_active_message()):
-        return
-
     info = await player.get_player_info()
-    text = format_now_playing(info)
-    try:
-        await message.bot.edit_message_text(
-            text,
-            chat_id=tp.instance.active_chat_id,
-            message_id=tp.instance.active_message_id,
-        )
-    except Exception as e:
-        logger.debug("Could not edit pinned status: %s", e)
+    await render_pinned(message.bot, info)
 
 
 def setup(player: BrowserPlayer) -> Router:
@@ -87,12 +74,12 @@ def setup(player: BrowserPlayer) -> Router:
     @router.message(F.text == "🔀")
     async def on_shuffle(message: Message) -> None:
         await player.toggle_shuffle()
-        await _update_pinned(message, player)
+        await _update_pinned(message, player, delay=0.3)
 
     @router.message(F.text == "❤️")
     async def on_like(message: Message) -> None:
         await player.like_track()
-        await _update_pinned(message, player)
+        await _update_pinned(message, player, delay=0.3)
 
     @router.message(F.text.in_({"15%", "25%", "50%", "75%", "100%"}))
     async def on_volume(message: Message) -> None:
@@ -102,5 +89,27 @@ def setup(player: BrowserPlayer) -> Router:
             await message.delete()
         except Exception as e:
             logger.debug("Could not delete volume message: %s", e)
+        info = await player.get_player_info()
+        await render_pinned(message.bot, info)
+
+    @router.callback_query(F.data.startswith("vol:"))
+    async def on_vol_bump(cb: CallbackQuery) -> None:
+        try:
+            delta = int(cb.data.split(":", 1)[1])
+        except ValueError:
+            await cb.answer()
+            return
+        new_level = await player.bump_volume(delta)
+        await cb.answer(f"🔊 {new_level}%")
+        info = await player.get_player_info()
+        await render_pinned(cb.message.bot, info)
+
+    @router.callback_query(F.data == "toggle:like")
+    async def on_toggle_like(cb: CallbackQuery) -> None:
+        await player.like_track()
+        await cb.answer("❤️")
+        await asyncio.sleep(0.3)
+        info = await player.get_player_info()
+        await render_pinned(cb.message.bot, info)
 
     return router

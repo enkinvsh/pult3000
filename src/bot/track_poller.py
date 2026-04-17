@@ -3,7 +3,8 @@ import logging
 
 from aiogram import Bot
 
-from src.bot.status import format_now_playing
+from src import state as app_state
+from src.bot.status import format_now_playing, status_keyboard
 from src.browser_player import BrowserPlayer
 
 logger = logging.getLogger(__name__)
@@ -18,14 +19,27 @@ class TrackPoller:
         self._last_video_id: str | None = None
         self._last_is_playing: bool | None = None
         self._last_volume: int | None = None
+        self._last_liked: bool | None = None
+        self._last_shuffle: bool | None = None
         self.active_message_id: int | None = None
         self.active_chat_id: int | None = None
         self._task: asyncio.Task | None = None
         self._busy: bool = False
 
+        saved = app_state.load()
+        self.active_chat_id = saved.get("chat_id")
+        self.active_message_id = saved.get("message_id")
+        if self.active_chat_id:
+            logger.info(
+                "Restored active message %s in chat %s",
+                self.active_message_id,
+                self.active_chat_id,
+            )
+
     def track_message(self, chat_id: int, message_id: int) -> None:
         self.active_chat_id = chat_id
         self.active_message_id = message_id
+        app_state.save({"chat_id": chat_id, "message_id": message_id})
         logger.info("Tracking message %s in chat %s", message_id, chat_id)
 
     def has_active_message(self) -> bool:
@@ -50,7 +64,7 @@ class TrackPoller:
 
     async def _poll_loop(self) -> None:
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(5 if self._last_is_playing else 15)
             if self._busy:
                 logger.debug("Poller: previous iteration still running, skipping")
                 continue
@@ -73,23 +87,30 @@ class TrackPoller:
         video_id = info["currentTrack"].get("videoId")
         is_playing = info.get("isPlaying")
         volume = info.get("volume")
+        liked = info.get("liked")
+        shuffle = info.get("shuffle")
 
         if (
             video_id == self._last_video_id
             and is_playing == self._last_is_playing
             and volume == self._last_volume
+            and liked == self._last_liked
+            and shuffle == self._last_shuffle
         ):
             return
 
         self._last_video_id = video_id
         self._last_is_playing = is_playing
         self._last_volume = volume
-        text = format_now_playing(info)
+        self._last_liked = liked
+        self._last_shuffle = shuffle
+
         try:
             await self._bot.edit_message_text(
-                text,
+                format_now_playing(info),
                 chat_id=self.active_chat_id,
                 message_id=self.active_message_id,
+                reply_markup=status_keyboard(info),
             )
             logger.info("Updated status: %s", video_id)
         except Exception as e:

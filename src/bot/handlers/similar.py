@@ -4,7 +4,7 @@ import logging
 from aiogram import F, Router
 from aiogram.types import Message
 
-from src.bot.status import format_now_playing, sync_poller
+from src.bot.status import render_pinned, send_new_status
 from src.browser_player import BrowserPlayer
 from src.music_search import MusicSearcher
 from src.queue import queue
@@ -40,7 +40,7 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
             started = await player.search_and_play_playlist(artist)
             if started:
                 await asyncio.sleep(2)
-                await _update_status(message, player)
+                await _refresh(message, player)
             else:
                 await message.answer(f"📻 Не нашёл плейлистов для {artist}")
             return
@@ -56,29 +56,12 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
         )
         await player.play_video(first_track.video_id)
         await asyncio.sleep(2)
-        await _update_status(message, player)
+        await _refresh(message, player)
 
     return router
 
 
-async def _update_status(message: Message, player: BrowserPlayer) -> None:
-    from src.bot import track_poller as tp
-
+async def _refresh(message: Message, player: BrowserPlayer) -> None:
     info = await player.get_player_info()
-    text = format_now_playing(info)
-
-    if tp.instance:
-        chat_id = tp.instance.active_chat_id
-        message_id = tp.instance.active_message_id
-        if chat_id is not None and message_id is not None:
-            try:
-                await message.bot.edit_message_text(
-                    text, chat_id=chat_id, message_id=message_id
-                )
-            except Exception as e:
-                logger.debug("Could not edit status message: %s", e)
-            sync_poller(info, chat_id, message_id)
-            return
-
-    msg = await message.answer(text)
-    sync_poller(info, msg.chat.id, msg.message_id)
+    if not await render_pinned(message.bot, info):
+        await send_new_status(message.bot, message.chat.id, info)

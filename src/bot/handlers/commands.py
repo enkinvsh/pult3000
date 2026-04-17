@@ -5,7 +5,7 @@ from aiogram.types import Message
 from src.bot import playback_mode as pm
 from src.bot.keyboards import reply_keyboard
 from src.bot.playback_mode import PlaybackMode
-from src.bot.status import format_now_playing, sync_poller
+from src.bot.status import render_pinned, send_new_status
 from src.browser_player import BrowserPlayer
 
 router = Router(name="commands")
@@ -15,8 +15,7 @@ def setup(player: BrowserPlayer) -> Router:
     async def show_remote(message: Message) -> None:
         await message.answer("🎵", reply_markup=reply_keyboard())
         info = await player.get_player_info()
-        msg = await message.answer(format_now_playing(info))
-        sync_poller(info, msg.chat.id, msg.message_id)
+        await send_new_status(message.bot, message.chat.id, info)
 
     @router.message(Command("start"))
     async def cmd_start(message: Message) -> None:
@@ -25,6 +24,17 @@ def setup(player: BrowserPlayer) -> Router:
     @router.message(Command("remote"))
     async def cmd_remote(message: Message) -> None:
         await show_remote(message)
+
+    @router.message(Command("now"))
+    async def cmd_now(message: Message) -> None:
+        info = await player.get_player_info()
+        updated = await render_pinned(message.bot, info)
+        if not updated:
+            await send_new_status(message.bot, message.chat.id, info)
+        try:
+            await message.delete()
+        except Exception:
+            pass
 
     @router.message(Command("mode"))
     async def cmd_mode(message: Message) -> None:

@@ -346,6 +346,11 @@ class BrowserPlayer:
                         ? likeBtn.getAttribute('like-status') === 'LIKE'
                         : false;
 
+                    const dur = isFinite(video.duration) ? video.duration : 0;
+                    const cur = isFinite(video.currentTime) ? video.currentTime : 0;
+                    const nearEnd = dur > 0 && cur >= dur - 1.0;
+                    const ended = video.ended || (nearEnd && video.paused);
+
                     return {
                         currentTrack: {
                             id: videoId,
@@ -355,10 +360,9 @@ class BrowserPlayer:
                         },
                         isPlaying: isPlaying,
                         volume: Math.round(video.volume * 100),
-                        position: isFinite(video.currentTime) ? video.currentTime : 0,
-                        duration: isFinite(video.duration) ? video.duration : 0,
                         shuffle: shuffleOn,
                         liked: liked,
+                        ended: ended,
                     };
                 }
                 """

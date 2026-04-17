@@ -6,6 +6,7 @@ from aiogram import Bot
 from src import history, state as app_state
 from src.bot.status import format_now_playing
 from src.browser_player import BrowserPlayer
+from src.queue import queue
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ class TrackPoller:
 
     async def _poll_loop(self) -> None:
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(3)
             if self._busy:
                 logger.debug("Poller: previous iteration still running, skipping")
                 continue
@@ -90,6 +91,18 @@ class TrackPoller:
         volume = info.get("volume")
         liked = info.get("liked")
         shuffle = info.get("shuffle")
+        ended = info.get("ended")
+
+        if ended and queue.is_active():
+            next_track = queue.next()
+            if next_track:
+                logger.info(
+                    "Queue auto-advance: %s - %s",
+                    next_track.artist,
+                    next_track.title,
+                )
+                await self._player.play_video(next_track.video_id)
+                return
 
         if video_id and video_id != self._last_video_id:
             history.add(

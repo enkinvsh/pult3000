@@ -114,4 +114,7 @@ class TrackPoller:
             )
             logger.info("Updated status: %s", video_id)
         except Exception as e:
-            logger.warning("Failed to update status message: %s", e)
+            if "not modified" in str(e):
+                logger.debug("Status unchanged: %s", e)
+            else:
+                logger.warning("Failed to update status message: %s", e)

@@ -1,9 +1,21 @@
 import logging
+import re
 from dataclasses import dataclass
 
 from ytmusicapi import YTMusic
 
 logger = logging.getLogger(__name__)
+
+_JUNK_PATTERN = re.compile(
+    r"\b(karaoke|instrumental|8d|nightcore|sped up|slowed|reverb|cover|"
+    r"remix|tribute|lyrics video|lyric video|backing track|minus one)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_junk(title: str, artist: str) -> bool:
+    blob = f"{artist} {title}"
+    return bool(_JUNK_PATTERN.search(blob))
 
 
 @dataclass
@@ -26,25 +38,31 @@ class MusicSearcher:
 
     def search(self, query: str, limit: int = 5) -> list[SearchResult]:
         try:
-            raw = self._ytm.search(query, filter="songs", limit=limit)
+            raw = self._ytm.search(query, filter="songs", limit=max(limit, 10))
         except Exception as e:
             logger.error("ytmusicapi search failed: %s", e)
             return []
 
-        results = []
+        query_has_junk = _is_junk(query, "")
+        clean: list[SearchResult] = []
+        junk: list[SearchResult] = []
         for item in raw:
-            if item.get("videoId"):
-                artists = item.get("artists", [])
-                artist_name = artists[0]["name"] if artists else "Unknown"
-                results.append(
-                    SearchResult(
-                        video_id=item["videoId"],
-                        title=item.get("title", "Unknown"),
-                        artist=artist_name,
-                        duration=item.get("duration"),
-                    )
-                )
-        return results
+            if not item.get("videoId"):
+                continue
+            artists = item.get("artists", [])
+            artist_name = artists[0]["name"] if artists else "Unknown"
+            title = item.get("title", "Unknown")
+            result = SearchResult(
+                video_id=item["videoId"],
+                title=title,
+                artist=artist_name,
+                duration=item.get("duration"),
+            )
+            if query_has_junk or not _is_junk(title, artist_name):
+                clean.append(result)
+            else:
+                junk.append(result)
+        return (clean + junk)[:limit]
 
     def search_artist_tracks(self, query: str, limit: int = 20) -> list[SearchResult]:
         """Search for an artist and return their top tracks."""

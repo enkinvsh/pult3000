@@ -2,8 +2,9 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from src import history
 from src.bot import playback_mode as pm
-from src.bot.keyboards import reply_keyboard
+from src.bot.keyboards import reply_keyboard, search_results_keyboard
 from src.bot.playback_mode import PlaybackMode
 from src.bot.status import render_pinned, send_new_status
 from src.browser_player import BrowserPlayer
@@ -35,6 +36,23 @@ def setup(player: BrowserPlayer) -> Router:
             await message.delete()
         except Exception:
             pass
+
+    @router.message(Command("last"))
+    async def cmd_last(message: Message) -> None:
+        items = history.recent(limit=15)
+        if not items:
+            await message.answer("📜 История пуста")
+            return
+        kb_items = [
+            (i["videoId"], f"{i.get('artist', '—')} — {i.get('title', '—')}")
+            for i in items
+        ]
+        await message.answer(
+            "📜 Недавние треки:",
+            reply_markup=search_results_keyboard(
+                kb_items, page=0, per_page=len(kb_items), total=len(kb_items)
+            ),
+        )
 
     @router.message(Command("mode"))
     async def cmd_mode(message: Message) -> None:

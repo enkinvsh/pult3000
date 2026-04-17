@@ -3,7 +3,7 @@ import logging
 
 from aiogram import Bot
 
-from src import state as app_state
+from src import history, state as app_state
 from src.bot.status import format_now_playing
 from src.browser_player import BrowserPlayer
 
@@ -84,11 +84,19 @@ class TrackPoller:
         if not info or not info.get("currentTrack"):
             return
 
-        video_id = info["currentTrack"].get("videoId")
+        track = info["currentTrack"]
+        video_id = track.get("videoId")
         is_playing = info.get("isPlaying")
         volume = info.get("volume")
         liked = info.get("liked")
         shuffle = info.get("shuffle")
+
+        if video_id and video_id != self._last_video_id:
+            history.add(
+                video_id,
+                track.get("title") or "—",
+                track.get("artist") or "—",
+            )
 
         if (
             video_id == self._last_video_id

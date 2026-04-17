@@ -1,5 +1,3 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
 _SPACER = "\u2007" * 35
 
 
@@ -38,20 +36,6 @@ def format_now_playing(info: dict | None) -> str:
     return "\n".join(lines)
 
 
-def status_keyboard(info: dict | None) -> InlineKeyboardMarkup:
-    liked = bool(info and info.get("liked"))
-    heart = "💔" if liked else "❤️"
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="🔉 -5", callback_data="vol:-5"),
-                InlineKeyboardButton(text=heart, callback_data="toggle:like"),
-                InlineKeyboardButton(text="🔊 +5", callback_data="vol:+5"),
-            ],
-        ]
-    )
-
-
 def sync_poller(info: dict | None, chat_id: int, message_id: int) -> None:
     from src.bot import track_poller as tp
 
@@ -80,7 +64,6 @@ async def render_pinned(bot, info: dict | None) -> bool:
             format_now_playing(info),
             chat_id=chat_id,
             message_id=message_id,
-            reply_markup=status_keyboard(info),
         )
         return True
     except Exception:
@@ -88,10 +71,6 @@ async def render_pinned(bot, info: dict | None) -> bool:
 
 
 async def send_new_status(bot, chat_id: int, info: dict | None):
-    msg = await bot.send_message(
-        chat_id,
-        format_now_playing(info),
-        reply_markup=status_keyboard(info),
-    )
+    msg = await bot.send_message(chat_id, format_now_playing(info))
     sync_poller(info, msg.chat.id, msg.message_id)
     return msg

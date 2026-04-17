@@ -4,7 +4,7 @@ import logging
 from aiogram import Bot
 
 from src import state as app_state
-from src.bot.status import format_now_playing, status_keyboard
+from src.bot.status import format_now_playing
 from src.browser_player import BrowserPlayer
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,6 @@ class TrackPoller:
                 format_now_playing(info),
                 chat_id=self.active_chat_id,
                 message_id=self.active_message_id,
-                reply_markup=status_keyboard(info),
             )
             logger.info("Updated status: %s", video_id)
         except Exception as e:

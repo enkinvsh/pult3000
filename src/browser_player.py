@@ -11,14 +11,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# User data directory for persistent login
 USER_DATA_DIR = Path.home() / ".pult3000" / "browser-data"
 
 
 @dataclass
 class TrackInfo:
-    """Current track information."""
-
     video_id: str
     title: str
     artist: str
@@ -39,102 +36,100 @@ class TrackInfo:
 
 
 class BrowserPlayer:
-    """Controls YouTube Music in a browser via Playwright."""
-
     def __init__(self, proxy_url: str | None = None) -> None:
         self._proxy_url = proxy_url
         self._context: "BrowserContext | None" = None
         self._page: "Page | None" = None
         self._playwright = None
-        self._lock = asyncio.Lock()
+        self._open_lock = asyncio.Lock()
 
     async def open(self) -> None:
-        """Open browser and navigate to YouTube Music."""
-        if self._page is not None:
-            logger.debug("Browser already open")
-            return
+        async with self._open_lock:
+            if self._page is not None:
+                logger.debug("Browser already open")
+                return
 
-        from playwright.async_api import async_playwright
+            from playwright.async_api import async_playwright
 
-        self._playwright = await async_playwright().start()
+            self._playwright = await async_playwright().start()
 
-        # Prepare launch options
-        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        launch_opts: dict = {
-            "headless": False,
-            "args": [
-                "--autoplay-policy=no-user-gesture-required",
-                "--disable-blink-features=AutomationControlled",
-            ],
-        }
+            launch_opts: dict = {
+                "headless": False,
+                "args": [
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            }
 
-        # Add proxy if configured
-        if self._proxy_url:
-            launch_opts["proxy"] = {"server": self._proxy_url}
+            if self._proxy_url:
+                launch_opts["proxy"] = {"server": self._proxy_url}
 
-        self._context = await self._playwright.chromium.launch_persistent_context(
-            user_data_dir=str(USER_DATA_DIR),
-            channel="chrome",
-            **launch_opts,
-        )
+            self._context = await self._playwright.chromium.launch_persistent_context(
+                user_data_dir=str(USER_DATA_DIR),
+                channel="chrome",
+                **launch_opts,
+            )
 
-        pages = self._context.pages
-        self._page = pages[0] if pages else await self._context.new_page()
+            pages = self._context.pages
+            self._page = pages[0] if pages else await self._context.new_page()
 
-        await self._context.add_init_script("""
-            setInterval(() => {
-                const video = document.querySelector('video');
-                if (video) {
-                    const vol = localStorage.getItem('pult_volume');
-                    if (vol !== null) video.volume = parseFloat(vol);
-                }
-            }, 100);
-        """)
+            await self._context.add_init_script("""
+                setInterval(() => {
+                    const video = document.querySelector('video');
+                    if (video) {
+                        const vol = localStorage.getItem('pult_volume');
+                        if (vol !== null) video.volume = parseFloat(vol);
+                    }
+                }, 100);
+            """)
 
-        await self._page.goto(
-            "https://music.youtube.com", wait_until="domcontentloaded"
-        )
-        logger.info("Browser opened, navigated to YouTube Music")
+            await self._page.goto(
+                "https://music.youtube.com", wait_until="domcontentloaded"
+            )
+            logger.info("Browser opened, navigated to YouTube Music")
 
-        await asyncio.sleep(2)
+            await asyncio.sleep(2)
 
     async def close(self) -> None:
-        """Close the browser."""
-        if self._context:
-            await self._context.close()
-            self._context = None
-            self._page = None
-        if self._playwright:
-            await self._playwright.stop()
-            self._playwright = None
-        logger.info("Browser closed")
+        async with self._open_lock:
+            if self._context:
+                await self._context.close()
+                self._context = None
+                self._page = None
+            if self._playwright:
+                await self._playwright.stop()
+                self._playwright = None
+            logger.info("Browser closed")
 
     async def _ensure_open(self) -> "Page":
-        """Ensure browser is open and return the page."""
-        async with self._lock:
-            if self._page is None:
-                await self.open()
-            return self._page  # type: ignore
+        if self._page is None:
+            await self.open()
+        assert self._page is not None
+        return self._page
+
+    async def _warn_missing(self, page: "Page", what: str) -> None:
+        try:
+            url = page.url
+        except Exception:
+            url = "?"
+        logger.warning("Selector missing: %s (url=%s)", what, url)
 
     async def search_and_play_playlist(self, artist: str) -> bool:
-        """Search for artist playlist and start playing."""
         page = await self._ensure_open()
 
         try:
-            # Click search button
             search_btn = page.locator('tp-yt-paper-icon-button[aria-label="Search"]')
             if await search_btn.count() > 0:
                 await search_btn.click()
                 await asyncio.sleep(0.5)
 
-            # Type in search box
             search_input = page.locator('input[aria-label="Search"]')
             await search_input.fill(f"{artist} playlist")
             await search_input.press("Enter")
             await asyncio.sleep(2)
 
-            # Click on "Playlists" filter chip if available
             playlists_chip = page.locator(
                 'yt-chip-cloud-chip-renderer:has-text("Playlists")'
             )
@@ -142,7 +137,6 @@ class BrowserPlayer:
                 await playlists_chip.first.click()
                 await asyncio.sleep(1)
 
-            # Click first playlist result
             playlist_card = page.locator(
                 'ytmusic-card-shelf-renderer a[href*="playlist"]'
             ).first
@@ -150,14 +144,13 @@ class BrowserPlayer:
                 await playlist_card.click()
                 await asyncio.sleep(2)
 
-                # Click shuffle play button
                 shuffle_btn = page.locator('tp-yt-paper-button:has-text("Shuffle")')
                 if await shuffle_btn.count() > 0:
                     await shuffle_btn.first.click()
                     logger.info("Started playlist for: %s", artist)
                     return True
+                await self._warn_missing(page, "shuffle button")
 
-            # Fallback: click any play button
             play_btn = page.locator("ytmusic-play-button-renderer").first
             if await play_btn.count() > 0:
                 await play_btn.click()
@@ -172,7 +165,6 @@ class BrowserPlayer:
             return False
 
     async def play_video(self, video_id: str) -> None:
-        """Navigate to and play a specific video."""
         page = await self._ensure_open()
 
         url = f"https://music.youtube.com/watch?v={video_id}"
@@ -183,7 +175,6 @@ class BrowserPlayer:
         logger.info("Playing video: %s", video_id)
 
     async def _click_play_if_paused(self, page: "Page") -> None:
-        """Click play button if video is paused."""
         play_btn = page.locator(
             'tp-yt-paper-icon-button.play-pause-button[aria-label="Play"]'
         )
@@ -191,12 +182,10 @@ class BrowserPlayer:
             await play_btn.click()
 
     async def play(self) -> None:
-        """Resume playback."""
         page = await self._ensure_open()
         await self._click_play_if_paused(page)
 
     async def pause(self) -> None:
-        """Pause playback."""
         page = await self._ensure_open()
         pause_btn = page.locator(
             'tp-yt-paper-icon-button.play-pause-button[aria-label="Pause"]'
@@ -205,51 +194,52 @@ class BrowserPlayer:
             await pause_btn.click()
 
     async def playpause(self) -> None:
-        """Toggle play/pause."""
         page = await self._ensure_open()
         await page.keyboard.press(" ")
         logger.info("Toggled play/pause")
 
     async def next_track(self) -> None:
-        """Skip to next track."""
         page = await self._ensure_open()
         await page.keyboard.press("Shift+N")
         logger.info("Skipped to next track")
 
     async def previous_track(self) -> None:
-        """Go to previous track."""
         page = await self._ensure_open()
         await page.keyboard.press("Shift+P")
         logger.info("Went to previous track")
 
     async def toggle_shuffle(self) -> None:
-        """Toggle shuffle mode."""
         page = await self._ensure_open()
         shuffle_btn = page.locator('tp-yt-paper-icon-button[aria-label*="shuffle" i]')
         if await shuffle_btn.count() > 0:
             await shuffle_btn.first.click()
+        else:
+            await self._warn_missing(page, "shuffle toggle")
 
     async def like_track(self) -> None:
-        """Like current track."""
         page = await self._ensure_open()
         like_btn = page.locator(
             "ytmusic-like-button-renderer #button-shape-like button"
         )
         if await like_btn.count() > 0:
             await like_btn.click()
+        else:
+            await self._warn_missing(page, "like button")
 
     async def set_volume(self, level: int) -> None:
         page = await self._ensure_open()
         vol = level / 100
-        await page.evaluate(f"""
-            localStorage.setItem('pult_volume', '{vol}');
-            const video = document.querySelector('video');
-            if (video) video.volume = {vol};
-        """)
+        await page.evaluate(
+            """(v) => {
+                localStorage.setItem('pult_volume', String(v));
+                const video = document.querySelector('video');
+                if (video) video.volume = v;
+            }""",
+            vol,
+        )
         logger.info("Volume set to %d%%", level)
 
     async def get_player_info(self) -> dict | None:
-        """Get current player state."""
         page = await self._ensure_open()
 
         try:
@@ -259,7 +249,6 @@ class BrowserPlayer:
                     const video = document.querySelector('video');
                     if (!video) return null;
 
-                    // Try multiple selectors for title
                     const titleSelectors = [
                         'ytmusic-player-bar .title',
                         '.content-info-wrapper .title',
@@ -275,7 +264,6 @@ class BrowserPlayer:
                         }
                     }
 
-                    // Try multiple selectors for artist
                     const artistSelectors = [
                         'ytmusic-player-bar .subtitle a',
                         '.content-info-wrapper .subtitle a',
@@ -292,11 +280,9 @@ class BrowserPlayer:
                         }
                     }
 
-                    // Get video ID from URL
                     const url = new URL(window.location.href);
                     const videoId = url.searchParams.get('v') || '';
 
-                    // Get play state
                     const isPlaying = !video.paused;
 
                     return {

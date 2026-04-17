@@ -18,28 +18,52 @@ class TrackPoller:
         self._last_video_id: str | None = None
         self._last_is_playing: bool | None = None
         self._last_volume: int | None = None
-        self._active_message_id: int | None = None
-        self._active_chat_id: int | None = None
+        self.active_message_id: int | None = None
+        self.active_chat_id: int | None = None
+        self._task: asyncio.Task | None = None
+        self._busy: bool = False
 
     def track_message(self, chat_id: int, message_id: int) -> None:
-        self._active_chat_id = chat_id
-        self._active_message_id = message_id
+        self.active_chat_id = chat_id
+        self.active_message_id = message_id
         logger.info("Tracking message %s in chat %s", message_id, chat_id)
 
+    def has_active_message(self) -> bool:
+        return self.active_message_id is not None and self.active_chat_id is not None
+
+    def prime_state(
+        self,
+        video_id: str | None,
+        is_playing: bool | None,
+        volume: int | None,
+    ) -> None:
+        self._last_video_id = video_id
+        self._last_is_playing = is_playing
+        self._last_volume = volume
+
     def start(self) -> None:
-        asyncio.create_task(self._poll_loop())
+        if self._task is not None and not self._task.done():
+            return
+        # Keep a reference so the task isn't garbage-collected.
+        self._task = asyncio.create_task(self._poll_loop(), name="track-poller")
         logger.info("Track poller started (10s interval)")
 
     async def _poll_loop(self) -> None:
         while True:
             await asyncio.sleep(10)
+            if self._busy:
+                logger.debug("Poller: previous iteration still running, skipping")
+                continue
+            self._busy = True
             try:
                 await self._check_track()
             except Exception as e:
                 logger.warning("Poller error: %s", e)
+            finally:
+                self._busy = False
 
     async def _check_track(self) -> None:
-        if not self._active_message_id or not self._active_chat_id:
+        if not self.has_active_message():
             return
 
         info = await self._player.get_player_info()
@@ -64,8 +88,8 @@ class TrackPoller:
         try:
             await self._bot.edit_message_text(
                 text,
-                chat_id=self._active_chat_id,
-                message_id=self._active_message_id,
+                chat_id=self.active_chat_id,
+                message_id=self.active_message_id,
             )
             logger.info("Updated status: %s", video_id)
         except Exception as e:

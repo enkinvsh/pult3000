@@ -28,6 +28,7 @@ def reply_keyboard() -> ReplyKeyboardMarkup:
             ],
         ],
         resize_keyboard=True,
+        is_persistent=True,
     )
 
 

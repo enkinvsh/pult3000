@@ -8,10 +8,11 @@ from aiogram.types import CallbackQuery, Message
 from src.bot import playback_mode as pm
 from src.bot.handlers.controls import CONTROL_BUTTONS
 from src.bot.keyboards import search_results_keyboard
-from src.bot.status import format_now_playing, sync_poller
 from src.bot.playback_mode import PlaybackMode
+from src.bot.status import format_now_playing, sync_poller
 from src.browser_player import BrowserPlayer
 from src.music_search import MusicSearcher, SearchResult
+from src.queue import queue
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,29 @@ def _page_items(page: int) -> list[tuple[str, str]]:
     return [(r.video_id, r.display) for r in _cached_results[start:end]]
 
 
+async def _play_single(player: BrowserPlayer, message_bot, video_id: str) -> None:
+    queue.clear()
+    await player.play_video(video_id)
+    await asyncio.sleep(3)
+
+    from src.bot import track_poller as tp
+
+    info = await player.get_player_info()
+    text = format_now_playing(info)
+    if tp.instance:
+        chat_id = tp.instance.active_chat_id
+        message_id = tp.instance.active_message_id
+        if chat_id is not None and message_id is not None:
+            try:
+                await message_bot.edit_message_text(
+                    text, chat_id=chat_id, message_id=message_id
+                )
+                sync_poller(info, chat_id, message_id)
+                return
+            except Exception as e:
+                logger.debug("Could not edit status on play_single: %s", e)
+
+
 def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
 
     @router.message(F.text)
@@ -55,47 +79,38 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
 
         try:
             await message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not delete search message: %s", e)
 
         if pm.current == PlaybackMode.ARTIST:
             results = searcher.search_artist_tracks(query, limit=20)
         else:
             results = searcher.search(query, limit=20)[:20]
+
         if not results:
             await message.answer("🔍 Ничего не нашёл")
             return
 
         if len(results) == 1:
-            await player.play_video(results[0].video_id)
-            await asyncio.sleep(3)
+            await _play_single(player, message.bot, results[0].video_id)
             from src.bot import track_poller as tp
 
-            info = await player.get_player_info()
-            text = format_now_playing(info)
-            if tp.instance and tp.instance._active_message_id:
-                try:
-                    await message.bot.edit_message_text(
-                        text,
-                        chat_id=tp.instance._active_chat_id,
-                        message_id=tp.instance._active_message_id,
-                    )
-                    return
-                except Exception:
-                    pass
-            msg = await message.answer(text)
-            sync_poller(info, msg.chat.id, msg.message_id)
-        else:
-            _cached_results.clear()
-            _cached_results.extend(results)
-            page = 0
-            items = _page_items(page)
-            await message.answer(
-                "🔍 Выбери трек:",
-                reply_markup=search_results_keyboard(
-                    items, page=page, per_page=_PER_PAGE, total=len(_cached_results)
-                ),
-            )
+            if not (tp.instance and tp.instance.has_active_message()):
+                info = await player.get_player_info()
+                msg = await message.answer(format_now_playing(info))
+                sync_poller(info, msg.chat.id, msg.message_id)
+            return
+
+        _cached_results.clear()
+        _cached_results.extend(results)
+        page = 0
+        items = _page_items(page)
+        await message.answer(
+            "🔍 Выбери трек:",
+            reply_markup=search_results_keyboard(
+                items, page=page, per_page=_PER_PAGE, total=len(_cached_results)
+            ),
+        )
 
     @router.callback_query(F.data.startswith("page:"))
     async def on_page(cb: CallbackQuery) -> None:
@@ -111,8 +126,8 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
                     items, page=page, per_page=_PER_PAGE, total=len(_cached_results)
                 ),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not edit pagination markup: %s", e)
 
     @router.callback_query(F.data.startswith("play:"))
     async def on_play_result(cb: CallbackQuery) -> None:
@@ -120,23 +135,9 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
         await cb.answer("▶️")
         try:
             await cb.message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not delete search result message: %s", e)
 
-        await player.play_video(video_id)
-        await asyncio.sleep(3)
-        from src.bot import track_poller as tp
-
-        info = await player.get_player_info()
-        text = format_now_playing(info)
-        if tp.instance and tp.instance._active_message_id:
-            try:
-                await cb.message.bot.edit_message_text(
-                    text,
-                    chat_id=tp.instance._active_chat_id,
-                    message_id=tp.instance._active_message_id,
-                )
-            except Exception:
-                pass
+        await _play_single(player, cb.message.bot, video_id)
 
     return router

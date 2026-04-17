@@ -59,5 +59,9 @@ class PlayQueue:
     def is_active(self) -> bool:
         return len(self.tracks) > 0
 
+    def clear(self) -> None:
+        self.tracks = []
+        self.index = 0
+
 
 queue = PlayQueue()

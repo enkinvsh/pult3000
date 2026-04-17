@@ -20,8 +20,8 @@ def setup(player: BrowserPlayer, searcher: MusicSearcher) -> Router:
     async def on_radio(message: Message) -> None:
         try:
             await message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not delete radio message: %s", e)
 
         info = await player.get_player_info()
         if not info or not info.get("currentTrack"):
@@ -67,17 +67,18 @@ async def _update_status(message: Message, player: BrowserPlayer) -> None:
     info = await player.get_player_info()
     text = format_now_playing(info)
 
-    if tp.instance and tp.instance._active_message_id:
-        try:
-            await message.bot.edit_message_text(
-                text,
-                chat_id=tp.instance._active_chat_id,
-                message_id=tp.instance._active_message_id,
-            )
-        except Exception as e:
-            logger.debug("Could not edit status message: %s", e)
-        sync_poller(info, tp.instance._active_chat_id, tp.instance._active_message_id)
-        return
+    if tp.instance:
+        chat_id = tp.instance.active_chat_id
+        message_id = tp.instance.active_message_id
+        if chat_id is not None and message_id is not None:
+            try:
+                await message.bot.edit_message_text(
+                    text, chat_id=chat_id, message_id=message_id
+                )
+            except Exception as e:
+                logger.debug("Could not edit status message: %s", e)
+            sync_poller(info, chat_id, message_id)
+            return
 
     msg = await message.answer(text)
     sync_poller(info, msg.chat.id, msg.message_id)

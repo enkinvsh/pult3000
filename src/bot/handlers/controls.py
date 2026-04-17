@@ -4,7 +4,7 @@ import logging
 from aiogram import F, Router
 from aiogram.types import Message
 
-from src.bot.status import format_now_playing, sync_poller
+from src.bot.status import format_now_playing
 from src.browser_player import BrowserPlayer
 from src.queue import queue
 
@@ -32,24 +32,27 @@ async def _update_pinned(
 ) -> None:
     try:
         await message.delete()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not delete control message: %s", e)
+
     if delay:
         await asyncio.sleep(delay)
+
     from src.bot import track_poller as tp
 
-    if not (tp.instance and tp.instance._active_message_id):
+    if not (tp.instance and tp.instance.has_active_message()):
         return
+
     info = await player.get_player_info()
     text = format_now_playing(info)
     try:
         await message.bot.edit_message_text(
             text,
-            chat_id=tp.instance._active_chat_id,
-            message_id=tp.instance._active_message_id,
+            chat_id=tp.instance.active_chat_id,
+            message_id=tp.instance.active_message_id,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not edit pinned status: %s", e)
 
 
 def setup(player: BrowserPlayer) -> Router:
@@ -97,7 +100,7 @@ def setup(player: BrowserPlayer) -> Router:
         await player.set_volume(level)
         try:
             await message.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not delete volume message: %s", e)
 
     return router

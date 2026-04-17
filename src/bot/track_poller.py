@@ -61,7 +61,7 @@ class TrackPoller:
             return
         # Keep a reference so the task isn't garbage-collected.
         self._task = asyncio.create_task(self._poll_loop(), name="track-poller")
-        logger.info("Track poller started (10s interval)")
+        logger.info("Track poller started (3s interval)")
 
     async def _poll_loop(self) -> None:
         while True:

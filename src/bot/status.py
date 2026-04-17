@@ -1,11 +1,6 @@
 _SPACER = "\u2007" * 35
 
 
-def _fmt_time(seconds: float) -> str:
-    total = int(seconds or 0)
-    return f"{total // 60}:{total % 60:02d}"
-
-
 def format_now_playing(info: dict | None) -> str:
     if not info or not info.get("currentTrack"):
         return f"{_SPACER}\n⏸ —"
@@ -20,17 +15,8 @@ def format_now_playing(info: dict | None) -> str:
         badges.append("🔀")
     if info.get("liked"):
         badges.append("❤️")
-    volume = info.get("volume")
-    if volume is not None:
-        badges.append(f"🔊 {volume}%")
-
-    duration = info.get("duration") or 0
-    position = info.get("position") or 0
-    progress = f"{_fmt_time(position)} / {_fmt_time(duration)}" if duration else ""
 
     lines = [_SPACER, f"{status_icon} {artist} — {title}"]
-    if progress:
-        lines.append(progress)
     if badges:
         lines.append(" · ".join(badges))
     return "\n".join(lines)

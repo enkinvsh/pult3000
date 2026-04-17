@@ -64,7 +64,7 @@ class TrackPoller:
 
     async def _poll_loop(self) -> None:
         while True:
-            await asyncio.sleep(5 if self._last_is_playing else 15)
+            await asyncio.sleep(10)
             if self._busy:
                 logger.debug("Poller: previous iteration still running, skipping")
                 continue

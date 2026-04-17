@@ -76,13 +76,27 @@ class BrowserPlayer:
             self._page = pages[0] if pages else await self._context.new_page()
 
             await self._context.add_init_script("""
-                setInterval(() => {
-                    const video = document.querySelector('video');
-                    if (video) {
+                (() => {
+                    const apply = () => {
+                        const video = document.querySelector('video');
+                        if (!video) return;
                         const vol = localStorage.getItem('pult_volume');
                         if (vol !== null) video.volume = parseFloat(vol);
-                    }
-                }, 100);
+                    };
+                    const attach = (video) => {
+                        video.addEventListener('volumechange', () => {
+                            localStorage.setItem('pult_volume', String(video.volume));
+                        });
+                    };
+                    const poll = setInterval(() => {
+                        const video = document.querySelector('video');
+                        if (!video) return;
+                        apply();
+                        attach(video);
+                        clearInterval(poll);
+                    }, 200);
+                    window.addEventListener('yt-navigate-finish', apply);
+                })();
             """)
 
             await self._page.goto(
